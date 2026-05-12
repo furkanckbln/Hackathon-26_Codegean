@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-multipart
+supabase
+rembg
+pillow
+numpy
+python-dotenv
+pydantic
+httpx
+requests

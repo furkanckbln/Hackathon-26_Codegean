@@ -449,7 +449,7 @@ Karşılaştırma yapabiliyorsan rakamları kullan.
         "contents": contents,
         "generationConfig": {
             "temperature": 0.6,
-            "maxOutputTokens": 1024,
+            "maxOutputTokens": 3000,
         },
     }
 

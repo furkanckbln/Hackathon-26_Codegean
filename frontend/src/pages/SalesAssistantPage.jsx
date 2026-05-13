@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
 import Layout from '../components/shared/Layout'
 import api from '../services/api'
 
@@ -275,7 +276,25 @@ export default function SalesAssistantPage() {
                     ${msg.role === 'user'
                       ? 'bg-blue-600 text-white rounded-br-sm'
                       : 'bg-gray-100 text-gray-700 rounded-bl-sm'}`}>
-                    {msg.text}
+                    {msg.role === 'user' ? msg.text : (
+                      <ReactMarkdown
+                        components={{
+                          p:      ({children}) => <p className="mb-2 last:mb-0">{children}</p>,
+                          strong: ({children}) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                          em:     ({children}) => <em className="italic">{children}</em>,
+                          ul:     ({children}) => <ul className="list-disc list-inside space-y-1 my-2">{children}</ul>,
+                          ol:     ({children}) => <ol className="list-decimal list-inside space-y-1 my-2">{children}</ol>,
+                          li:     ({children}) => <li className="text-gray-700">{children}</li>,
+                          h1:     ({children}) => <h1 className="font-bold text-base mb-1">{children}</h1>,
+                          h2:     ({children}) => <h2 className="font-bold text-sm mb-1">{children}</h2>,
+                          h3:     ({children}) => <h3 className="font-semibold text-sm mb-1">{children}</h3>,
+                          code:   ({children}) => <code className="bg-gray-200 px-1 py-0.5 rounded text-xs font-mono">{children}</code>,
+                          hr:     () => <hr className="my-2 border-gray-300" />,
+                        }}
+                      >
+                        {msg.text}
+                      </ReactMarkdown>
+                    )}
                   </div>
                 </div>
               ))}
@@ -316,6 +335,10 @@ export default function SalesAssistantPage() {
 
             {/* Input */}
             <div className="p-4 border-t border-gray-100">
+              <p className="text-xs text-gray-400 mb-2 flex items-center gap-1">
+                <span>💡</span>
+                Asistan son 10 mesajı hatırlar. Daha eski konuşmalar bağlam dışında kalır.
+              </p>
               <div className="flex gap-2 items-end">
                 <textarea
                   rows={2}

@@ -1,19 +1,28 @@
 import { useState } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
-const menuItems = [
-  { to: '/dashboard',        icon: '📋', label: 'İlanlarım'         },
-  { to: '/new-listing',      icon: '✨', label: 'Yeni İlan Oluştur' },
-  { to: '/sales-assistant',  icon: '🤖', label: 'Satış Asistanı'    },
-  { to: '/finance',          icon: '💰', label: 'Finans Paneli'     },
-  { to: '/competitor',       icon: '🔍', label: 'Rakip İlanları'    },
+const salesMenuItems = [
+  { to: '/dashboard',       icon: '📋', label: 'İlanlarım'         },
+  { to: '/new-listing',     icon: '✨', label: 'Yeni İlan Oluştur' },
+  { to: '/sales-assistant', icon: '🤖', label: 'Satış Asistanı'    },
+  { to: '/competitor',      icon: '🔍', label: 'Rakip İlanları'    },
+]
+
+const financeMenuItems = [
+  { to: '/finance',              icon: '📊', label: 'Genel Bakış'         },
+  { to: '/finance/transactions', icon: '💸', label: 'Gelir & Giderler'    },
+  { to: '/finance/reports',      icon: '📈', label: 'Raporlar'            },
+  { to: '/finance/assistant',    icon: '🤖', label: 'Finans Asistanı'     },
 ]
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth()
   const navigate         = useNavigate()
+  const location         = useLocation()
   const [collapsed, setCollapsed] = useState(false)
+
+  const isFinance = location.pathname.startsWith('/finance')
 
   const handleLogout = async () => {
     await logout()
@@ -39,7 +48,7 @@ export default function Layout({ children }) {
 
         {/* Menü */}
         <nav className="flex-1 py-4 space-y-1 px-2">
-          {menuItems.map((item) => (
+          {(isFinance ? financeMenuItems : salesMenuItems).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -76,8 +85,30 @@ export default function Layout({ children }) {
 
       {/* Ana içerik */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-gray-800">Satıcı Paneli</h1>
+        <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+          {/* Panel seçici */}
+          <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors
+                ${!isFinance
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              🛍️ Satış Paneli
+            </button>
+            <button
+              onClick={() => navigate('/finance')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors
+                ${isFinance
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              💰 Finans Paneli
+            </button>
+          </div>
+
+          {/* Mağaza adı */}
           <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-xs font-medium">
             <span>🏪</span>
             <span>{user?.user_metadata?.store_name || user?.email}</span>

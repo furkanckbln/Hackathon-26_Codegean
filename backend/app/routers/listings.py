@@ -150,7 +150,7 @@ async def get_all_listings(
     Rakip analizi menüsü için kullanılır.
     """
     query = supabase.table("listings")\
-        .select("id, title, category, price, clean_image_url, created_at")\
+        .select("id, title, category, price, stock, clean_image_url, sales_count, rating, created_at")\
         .eq("status", "active")
 
     if category:
@@ -177,6 +177,36 @@ async def get_listing(
         raise HTTPException(status_code=404, detail="İlan bulunamadı.")
 
     return result.data
+
+
+# ── PUT /listings/{listing_id} — Tüm alanları güncelle ──────────────────────
+@router.put("/{listing_id}")
+async def update_listing(
+    listing_id: str,
+    body: dict,
+    current_user=Depends(get_current_user),
+):
+    """İlan içeriğini (başlık, açıklama, fiyat vb.) güncelle."""
+    allowed = {"title", "short_desc", "long_desc", "features", "seo_tags",
+               "category", "price", "stock", "status"}
+    update_data = {k: v for k, v in body.items() if k in allowed}
+
+    # features ve seo_tags liste olarak saklanıyor
+    if "features" in update_data and isinstance(update_data["features"], str):
+        update_data["features"] = [f.strip() for f in update_data["features"].split("\n") if f.strip()]
+    if "seo_tags" in update_data and isinstance(update_data["seo_tags"], str):
+        update_data["seo_tags"] = [t.strip() for t in update_data["seo_tags"].split(",") if t.strip()]
+
+    if not update_data:
+        raise HTTPException(status_code=400, detail="Güncellenecek alan bulunamadı.")
+
+    supabase.table("listings")\
+        .update(update_data)\
+        .eq("id", listing_id)\
+        .eq("user_id", current_user.id)\
+        .execute()
+
+    return {"message": "İlan güncellendi."}
 
 
 # ── PATCH /listings/{listing_id} ─────────────────────────────────────────────

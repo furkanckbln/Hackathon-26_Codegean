@@ -33,8 +33,9 @@ export default function ListingDetailPage() {
 
   const sellerView = location.state?.sellerView ?? false
 
+  // State'den gelen veri sadece anlık önizleme için — tam veri her zaman API'den çekilir
   const [listing,    setListing]    = useState(location.state?.listing || null)
-  const [loading,    setLoading]    = useState(!listing)
+  const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState('')
   const [activeTab,  setActiveTab]  = useState('desc')
 
@@ -46,41 +47,35 @@ export default function ListingDetailPage() {
   // Müşteri görünümü
   const [added,      setAdded]      = useState(false)
 
-  // Listing yüklenince edit state'ini doldur
+  // Her zaman API'den tam veriyi çek (state sadece ilk render için)
   useEffect(() => {
-    if (listing) {
-      setEdit({
-        title:      listing.title      || '',
-        short_desc: listing.short_desc || '',
-        long_desc:  listing.long_desc  || '',
-        features:   Array.isArray(listing.features)
-                      ? listing.features.join('\n')
-                      : (listing.features || ''),
-        seo_tags:   Array.isArray(listing.seo_tags)
-                      ? listing.seo_tags.join(', ')
-                      : (listing.seo_tags || ''),
-        category:   listing.category  || '',
-        price:      listing.price     || '',
-        stock:      listing.stock     ?? '',
-        status:     listing.status    || 'draft',
-      })
-    }
-  }, [listing])
-
-  // Eğer state'den gelmemişse API'den çek
-  useEffect(() => {
-    if (listing) return
-    const fetch = async () => {
+    const fetchFull = async () => {
       try {
         const res = await api.get(`/listings/${id}`)
-        setListing(res.data)
+        const data = res.data
+        setListing(data)
+        setEdit({
+          title:      data.title      || '',
+          short_desc: data.short_desc || '',
+          long_desc:  data.long_desc  || '',
+          features:   Array.isArray(data.features)
+                        ? data.features.join('\n')
+                        : (data.features || ''),
+          seo_tags:   Array.isArray(data.seo_tags)
+                        ? data.seo_tags.join(', ')
+                        : (data.seo_tags || ''),
+          category:   data.category  || '',
+          price:      data.price     || '',
+          stock:      data.stock     ?? '',
+          status:     data.status    || 'draft',
+        })
       } catch {
         setError('İlan bulunamadı veya yüklenemedi.')
       } finally {
         setLoading(false)
       }
     }
-    fetch()
+    fetchFull()
   }, [id])
 
   const updateEdit = (key, val) => setEdit(prev => ({ ...prev, [key]: val }))
@@ -90,8 +85,17 @@ export default function ListingDetailPage() {
     setSaving(true)
     setSaveMsg('')
     try {
-      await api.patch(`/listings/${id}?status=${edit.status}`)
-      // Diğer alanları da güncellemek için ek endpoint gerekirse buraya eklenecek
+      await api.put(`/listings/${id}`, {
+        title:      edit.title,
+        short_desc: edit.short_desc,
+        long_desc:  edit.long_desc,
+        features:   edit.features,
+        seo_tags:   edit.seo_tags,
+        category:   edit.category,
+        price:      parseFloat(edit.price) || 0,
+        stock:      parseInt(edit.stock)   || 0,
+        status:     edit.status,
+      })
       setListing(prev => ({ ...prev, ...edit }))
       setSaveMsg('✓ Değişiklikler kaydedildi.')
       setTimeout(() => setSaveMsg(''), 3000)

@@ -2,14 +2,30 @@
 Finans Router
 
 Endpoint'ler:
-  GET /finance/overview  — Genel Bakış (KPI'lar, aylık gelir, kategori, top ilanlar)
+  GET  /finance/overview  — Genel Bakış (KPI'lar, aylık gelir, kategori, top ilanlar)
+  GET  /finance/context   — Finans Asistanı için tam finansal bağlam
+  POST /finance/chat      — Finans Asistanı sohbet
 """
 
-from fastapi import APIRouter, Depends
+import asyncio
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from typing import List
 from app.routers.auth import get_current_user
 from app.database.supabase_client import supabase
+from app.services.gemini_service import finance_assistant_chat
 from collections import defaultdict
 from datetime import date
+
+
+class FinanceChatMessage(BaseModel):
+    role: str
+    text: str
+
+class FinanceChatRequest(BaseModel):
+    message: str
+    history: List[FinanceChatMessage] = []
+    context: dict = {}
 
 router = APIRouter()
 
@@ -136,3 +152,121 @@ async def get_overview(current_user=Depends(get_current_user)):
         "category_revenue": category_revenue,
         "top_listings":     top_listings,
     }
+
+
+@router.get("/context")
+async def get_finance_context(current_user=Depends(get_current_user)):
+    """
+    Finans Asistanı için kapsamlı finansal bağlam.
+    Orders + finance_records tablolarını birleştirir.
+    """
+    user_id = current_user.id
+
+    # ── 1. Siparişler ────────────────────────────────────────────────────────
+    orders_res = supabase.table("orders") \
+        .select("sale_price, cargo_price, commission_amt, cogs, net_revenue, quantity, status, order_date") \
+        .eq("seller_id", user_id).execute()
+    orders = orders_res.data or []
+
+    completed = [o for o in orders if o["status"] in ("delivered", "shipped")]
+
+    gross_revenue          = sum((o["sale_price"] or 0) * (o["quantity"] or 1) for o in completed)
+    net_revenue_from_sales = sum(o["net_revenue"] or 0 for o in completed)
+    total_cogs             = sum(o["cogs"] or 0 for o in completed)
+    total_commission       = sum(o["commission_amt"] or 0 for o in completed)
+    total_cargo            = sum(o["cargo_price"] or 0 for o in completed)
+
+    orders_summary = {
+        "gross_revenue":          round(gross_revenue, 2),
+        "net_revenue_from_sales": round(net_revenue_from_sales, 2),
+        "total_cogs":             round(total_cogs, 2),
+        "total_commission":       round(total_commission, 2),
+        "total_cargo":            round(total_cargo, 2),
+        "total_orders":           len(orders),
+        "completed_orders":       len(completed),
+    }
+
+    # ── 2. Finance Records ───────────────────────────────────────────────────
+    records_res = supabase.table("finance_records") \
+        .select("type, amount, category, record_date") \
+        .eq("user_id", user_id).execute()
+    records = records_res.data or []
+
+    income_records  = [r for r in records if r["type"] == "income"]
+    expense_records = [r for r in records if r["type"] == "expense"]
+
+    total_other_income = sum(r["amount"] or 0 for r in income_records)
+    total_expense      = sum(r["amount"] or 0 for r in expense_records)
+
+    # Gider kategorileri
+    cat_exp: dict[str, dict] = defaultdict(lambda: {"total": 0.0, "count": 0})
+    for r in expense_records:
+        cat = r.get("category") or "Diğer"
+        cat_exp[cat]["total"] += r["amount"] or 0
+        cat_exp[cat]["count"] += 1
+
+    expense_breakdown = sorted(
+        [{"category": k, "total": round(v["total"], 2), "count": v["count"]}
+         for k, v in cat_exp.items()],
+        key=lambda x: -x["total"]
+    )
+
+    records_summary = {
+        "total_income":  round(total_other_income, 2),
+        "total_expense": round(total_expense, 2),
+    }
+
+    # ── 3. Gerçek Net Kâr ────────────────────────────────────────────────────
+    true_net_profit = round(net_revenue_from_sales + total_other_income - total_expense, 2)
+
+    # ── 4. Aylık nakit akışı ─────────────────────────────────────────────────
+    monthly_orders: dict[str, float]  = defaultdict(float)
+    for o in completed:
+        if o.get("order_date"):
+            ym = str(o["order_date"])[:7]
+            monthly_orders[ym] += o["net_revenue"] or 0
+
+    monthly_expenses: dict[str, float] = defaultdict(float)
+    for r in expense_records:
+        if r.get("record_date"):
+            ym = str(r["record_date"])[:7]
+            monthly_expenses[ym] += r["amount"] or 0
+
+    all_months = sorted(set(list(monthly_orders.keys()) + list(monthly_expenses.keys())))
+    monthly_cashflow = [
+        {
+            "month":      m,
+            "orders_net": round(monthly_orders.get(m, 0), 2),
+            "expenses":   round(monthly_expenses.get(m, 0), 2),
+            "net":        round(monthly_orders.get(m, 0) - monthly_expenses.get(m, 0), 2),
+        }
+        for m in all_months[-6:]   # son 6 ay
+    ]
+
+    return {
+        "orders_summary":   orders_summary,
+        "records_summary":  records_summary,
+        "true_net_profit":  true_net_profit,
+        "expense_breakdown": expense_breakdown,
+        "monthly_cashflow": monthly_cashflow,
+        "period_months":    6,
+    }
+
+
+@router.post("/chat")
+async def finance_chat(
+    body: FinanceChatRequest,
+    current_user=Depends(get_current_user),
+):
+    """Finans asistanı sohbet endpoint'i."""
+    try:
+        reply = await asyncio.to_thread(
+            finance_assistant_chat,
+            message = body.message,
+            history = [m.model_dump() for m in body.history],
+            context = body.context,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Asistan yanıt üretemedi: {str(e)}")
+
+    return {"reply": reply}

@@ -348,6 +348,108 @@ JSON formatı:
     }
 
 
+# ── Finans Asistanı Chat (SYNC) ─────────────────────────────────────────────
+def finance_assistant_chat(
+    message: str,
+    history: list,
+    context: dict,
+) -> str:
+    """
+    Finans asistanı sohbet fonksiyonu. (senkron)
+    Router'dan asyncio.to_thread() ile çağrılır.
+
+    Args:
+        message : Kullanıcının yeni mesajı
+        history : [{"role": "user"|"ai", "text": "..."}] — son 10 mesaj
+        context : /finance/context endpoint'inden gelen veri sözlüğü
+    """
+
+    orders   = context.get("orders_summary", {})
+    records  = context.get("records_summary", {})
+    profit   = context.get("true_net_profit", 0)
+    monthly  = context.get("monthly_cashflow", [])
+    expenses = context.get("expense_breakdown", [])
+    period   = context.get("period_months", 6)
+
+    # Aylık nakit akışı özeti
+    monthly_text = "\n".join([
+        f"  {m['month']}: Satış geliri ₺{m['orders_net']:,.0f} | "
+        f"Gider ₺{m['expenses']:,.0f} | Net ₺{m['net']:,.0f}"
+        for m in monthly
+    ]) or "  Henüz aylık veri yok."
+
+    # Gider kategorileri
+    expense_text = "\n".join([
+        f"  - {e['category']}: ₺{e['total']:,.0f} ({e['count']} kayıt)"
+        for e in expenses
+    ]) or "  Gider kaydı yok."
+
+    # Marj hesapları
+    gross = orders.get("gross_revenue", 0)
+    gross_margin = round((orders.get("net_revenue_from_sales", 0) / gross * 100), 1) if gross else 0
+    true_margin  = round((profit / gross * 100), 1) if gross else 0
+    rec_expense  = records.get("total_expense", 0)
+    marketing    = next((e["total"] for e in expenses if "Reklam" in e["category"]), 0)
+    marketing_pct = round((marketing / gross * 100), 1) if gross else 0
+
+    system_prompt = f"""Sen SellerAI platformunun uzman bir KOBİ finansal danışmanısın.
+Türk küçük ölçekli e-ticaret satıcılarına nakit akışı, kârlılık ve maliyet yönetimi konularında \
+somut, veri odaklı öneriler veriyorsun. Her zaman Türkçe yanıt ver. Gereksiz giriş cümleleri kurma.
+
+━━━ SON {period} AYLIK FİNANSAL TABLO ━━━
+
+SATIŞ GELİRLERİ (Sipariş Tablosu):
+  Brüt satış hasılatı : ₺{gross:,.0f}
+  COGS (maliyet)      : ₺{orders.get('total_cogs', 0):,.0f}
+  Komisyon            : ₺{orders.get('total_commission', 0):,.0f}
+  Kargo               : ₺{orders.get('total_cargo', 0):,.0f}
+  Satış net geliri    : ₺{orders.get('net_revenue_from_sales', 0):,.0f}  (brüt marj %{gross_margin})
+  Tamamlanan sipariş  : {orders.get('completed_orders', 0)} adet
+
+OPERASYONEL GİDERLER (Manuel Kayıtlar):
+{expense_text}
+  ──────────────────────────────────────
+  Toplam operasyonel gider : ₺{rec_expense:,.0f}
+  Toplam diğer gelir       : ₺{records.get('total_income', 0):,.0f}
+
+GERÇEK NET KÂR:
+  ₺{profit:,.0f}  (gerçek net marj %{true_margin})
+  [Formül: Satış net geliri + Diğer gelirler - Operasyonel giderler]
+
+PAZARLAMA/REKLAM HARCAMASI:
+  ₺{marketing:,.0f} → Brüt hasılatın %{marketing_pct}'i
+
+AYLIK NAKİT AKIŞI:
+{monthly_text}
+
+━━━ GÖREV ━━━
+Satıcının sorularını bu verilere dayanarak yanıtla.
+Somut rakamlar kullan. Kıyaslama yapabiliyorsan yap.
+Öneri veriyorsan uygulanabilir ve kısa ol.
+Sektör benchmark'larını biliyorsan paylaş (örn. "e-ticarette reklam/hasılat oranı genelde %5-10 olmalı")."""
+
+    # Gemini contents dizisi
+    contents = [
+        {"role": "user",  "parts": [{"text": system_prompt}]},
+        {"role": "model", "parts": [{"text": "Anladım. Finansal tablo elimde, sorularını bekliyorum."}]},
+    ]
+    for msg in history[-10:]:
+        role = "user" if msg["role"] == "user" else "model"
+        contents.append({"role": role, "parts": [{"text": msg["text"]}]})
+    contents.append({"role": "user", "parts": [{"text": message}]})
+
+    payload = {
+        "contents": contents,
+        "generationConfig": {
+            "temperature": 0.5,
+            "maxOutputTokens": 3000,
+        },
+    }
+
+    raw = _gemini_post(payload)
+    return _extract_text(raw).strip()
+
+
 # ── Satış Asistanı Chat (SYNC) ───────────────────────────────────────────────
 def sales_assistant_chat(
     message: str,

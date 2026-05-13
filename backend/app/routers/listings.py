@@ -188,7 +188,7 @@ async def update_listing(
 ):
     """İlan içeriğini (başlık, açıklama, fiyat vb.) güncelle."""
     allowed = {"title", "short_desc", "long_desc", "features", "seo_tags",
-               "category", "price", "stock", "status"}
+               "category", "price", "cost_price", "stock", "status"}
     update_data = {k: v for k, v in body.items() if k in allowed}
 
     # features ve seo_tags liste olarak saklanıyor

@@ -65,9 +65,10 @@ export default function ListingDetailPage() {
                         ? data.seo_tags.join(', ')
                         : (data.seo_tags || ''),
           category:   data.category  || '',
-          price:      data.price     || '',
-          stock:      data.stock     ?? '',
-          status:     data.status    || 'draft',
+          price:      data.price      || '',
+          cost_price: data.cost_price ?? '',
+          stock:      data.stock      ?? '',
+          status:     data.status     || 'draft',
         })
       } catch {
         setError('İlan bulunamadı veya yüklenemedi.')
@@ -92,8 +93,9 @@ export default function ListingDetailPage() {
         features:   edit.features,
         seo_tags:   edit.seo_tags,
         category:   edit.category,
-        price:      parseFloat(edit.price) || 0,
-        stock:      parseInt(edit.stock)   || 0,
+        price:      parseFloat(edit.price)      || 0,
+        cost_price: parseFloat(edit.cost_price)  || 0,
+        stock:      parseInt(edit.stock)         || 0,
         status:     edit.status,
       })
       setListing(prev => ({ ...prev, ...edit }))
@@ -224,11 +226,19 @@ export default function ListingDetailPage() {
                     </div>
                   </div>
 
-                  {/* Fiyat + Stok yan yana */}
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Fiyat + Maliyet + Stok */}
+                  <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Fiyat (₺)</label>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Satış Fiyatı (₺)</label>
                       <input type="number" value={edit.price} onChange={e => updateEdit('price', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Maliyet (₺)
+                        <span className="text-gray-400 font-normal ml-1">kâr hesabı</span>
+                      </label>
+                      <input type="number" value={edit.cost_price} onChange={e => updateEdit('cost_price', e.target.value)}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div>

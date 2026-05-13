@@ -67,6 +67,7 @@ const EMPTY_FORM = {
   seoTags:     '',
   brand:       '',
   price:       '',
+  costPrice:   '',
   stock:       '',
   variant:     '',
   shippingDay: '',
@@ -252,8 +253,9 @@ export default function NewListingPage() {
         features:        form.features,
         seo_tags:        form.seoTags,
         category:        category,
-        price:           parseFloat(form.price) || 0,
-        stock:           parseInt(form.stock)   || 0,
+        price:           parseFloat(form.price)     || 0,
+        cost_price:      parseFloat(form.costPrice)  || 0,
+        stock:           parseInt(form.stock)        || 0,
         clean_image_url: cleanImage,
       })
       setPublishDone(true)
@@ -397,7 +399,7 @@ export default function NewListingPage() {
                 </h3>
 
                 {/* Satıcı alanları */}
-                <div className="grid grid-cols-3 gap-4 mb-6 p-4 bg-gray-50 rounded-xl">
+                <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-xl">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1">Marka <span className="text-red-400">*</span></label>
                     <input type="text" value={form.brand} onChange={e => updateForm('brand', e.target.value)}
@@ -405,15 +407,26 @@ export default function NewListingPage() {
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Fiyat (₺) <span className="text-red-400">*</span></label>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Stok Adedi <span className="text-red-400">*</span></label>
+                    <input type="number" value={form.stock} onChange={e => updateForm('stock', e.target.value)}
+                      placeholder="0"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Satış Fiyatı (₺) <span className="text-red-400">*</span>
+                    </label>
                     <input type="number" value={form.price} onChange={e => updateForm('price', e.target.value)}
                       placeholder="0.00"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Stok Adedi <span className="text-red-400">*</span></label>
-                    <input type="number" value={form.stock} onChange={e => updateForm('stock', e.target.value)}
-                      placeholder="0"
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Maliyet Fiyatı (₺)
+                      <span className="text-gray-400 font-normal ml-1">— kâr hesabı için</span>
+                    </label>
+                    <input type="number" value={form.costPrice} onChange={e => updateForm('costPrice', e.target.value)}
+                      placeholder="0.00"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                 </div>

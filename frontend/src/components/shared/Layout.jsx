@@ -3,10 +3,11 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 
 const menuItems = [
-  { to: '/dashboard',   icon: '📋', label: 'İlanlarım'         },
-  { to: '/new-listing', icon: '✨', label: 'Yeni İlan Oluştur' },
-  { to: '/finance',     icon: '💰', label: 'Finans Paneli'     },
-  { to: '/competitor',  icon: '🔍', label: 'Rakip İlanları'    },
+  { to: '/dashboard',        icon: '📋', label: 'İlanlarım'         },
+  { to: '/new-listing',      icon: '✨', label: 'Yeni İlan Oluştur' },
+  { to: '/sales-assistant',  icon: '🤖', label: 'Satış Asistanı'    },
+  { to: '/finance',          icon: '💰', label: 'Finans Paneli'     },
+  { to: '/competitor',       icon: '🔍', label: 'Rakip İlanları'    },
 ]
 
 export default function Layout({ children }) {

@@ -6,7 +6,8 @@ import DashboardPage  from './pages/DashboardPage'
 import NewListingPage from './pages/NewListingPage'
 import FinancePage    from './pages/FinancePage'
 import CompetitorPage    from './pages/CompetitorPage'
-import ListingDetailPage from './pages/ListingDetailPage'
+import ListingDetailPage    from './pages/ListingDetailPage'
+import SalesAssistantPage  from './pages/SalesAssistantPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -30,7 +31,8 @@ function AppRoutes() {
       <Route path="/new-listing" element={<ProtectedRoute><NewListingPage /></ProtectedRoute>} />
       <Route path="/finance"     element={<ProtectedRoute><FinancePage /></ProtectedRoute>} />
       <Route path="/competitor"  element={<ProtectedRoute><CompetitorPage /></ProtectedRoute>} />
-      <Route path="/listings/:id" element={<ProtectedRoute><ListingDetailPage /></ProtectedRoute>} />
+      <Route path="/listings/:id"      element={<ProtectedRoute><ListingDetailPage /></ProtectedRoute>} />
+      <Route path="/sales-assistant"  element={<ProtectedRoute><SalesAssistantPage /></ProtectedRoute>} />
     </Routes>
   )
 }

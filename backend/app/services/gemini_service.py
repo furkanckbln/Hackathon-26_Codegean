@@ -346,3 +346,112 @@ JSON formatı:
         "updated_form": updated_form,
         "reply": reply,
     }
+
+
+# ── Satış Asistanı Chat (SYNC) ───────────────────────────────────────────────
+def sales_assistant_chat(
+    message: str,
+    history: list,
+    context: dict,
+) -> str:
+    """
+    Satış asistanı sohbet fonksiyonu. (senkron)
+    Router'dan asyncio.to_thread() ile çağrılır.
+
+    Args:
+        message : Kullanıcının yeni mesajı
+        history : [{"role": "user"|"ai", "text": "..."}] — son 10 mesaj
+        context : summary endpoint'inden gelen veri sözlüğü
+
+    Returns:
+        Asistanın yanıt metni
+    """
+
+    # ── Bağlam verisini okunabilir metne çevir ───────────────────────────────
+    my_stats     = context.get("my_stats", {})
+    top_listings = context.get("top_listings", [])
+    low_stock    = context.get("low_stock", [])
+    category_avgs = context.get("category_avgs", {})
+    top_sector   = context.get("top_sector", [])
+
+    top_listings_text = "\n".join([
+        f"  - {l['title']} → {l.get('sales_count', 0)} satış, "
+        f"puan: {l.get('rating') or 'yok'}, fiyat: {l.get('price', '?')}₺"
+        for l in top_listings
+    ]) or "  Henüz satış verisi yok."
+
+    low_stock_text = "\n".join([
+        f"  - {l['title']} → {l.get('stock', 0)} adet kaldı"
+        for l in low_stock
+    ]) or "  Stok uyarısı yok."
+
+    top_sector_text = "\n".join([
+        f"  - {l['title']} ({l.get('category', '?')}) → "
+        f"{l.get('sales_count', 0)} satış, {l.get('price', '?')}₺"
+        for l in top_sector
+    ]) or "  Veri yok."
+
+    category_text = "\n".join([
+        f"  - {cat}: ort. fiyat {d.get('avg_price') or '?'}₺, "
+        f"ort. satış {d.get('avg_sales') or '?'}, "
+        f"ort. puan {d.get('avg_rating') or '?'}, "
+        f"{d.get('listing_count', 0)} ilan"
+        for cat, d in list(category_avgs.items())[:10]
+    ]) or "  Veri yok."
+
+    system_prompt = f"""Sen SellerAI platformunun deneyimli bir e-ticaret satış asistanısın.
+Türk KOBİ satıcılarına ilanlarını iyileştirme, fiyatlandırma ve sektör trendleri konusunda somut, \
+veri odaklı öneriler sunuyorsun. Her zaman Türkçe yanıt ver. Kısa ve net ol, gereksiz giriş cümleleri kurma.
+
+━━━ SATICININ MEVCUT VERİLERİ ━━━
+
+GENEL DURUM:
+  Toplam ilan: {my_stats.get('total_listings', 0)}
+  Aktif ilan:  {my_stats.get('active_listings', 0)}
+  Toplam satış: {my_stats.get('total_sales', 0)}
+  Ortalama puan: {my_stats.get('avg_rating') or 'henüz yok'}
+
+EN ÇOK SATAN İLANLARI:
+{top_listings_text}
+
+STOK UYARILARI (stok <= 5):
+{low_stock_text}
+
+━━━ SEKTÖR VERİLERİ ━━━
+
+PLATFORMUN EN ÇOK SATANLARI:
+{top_sector_text}
+
+KATEGORİ ORTALIMALARI:
+{category_text}
+
+━━━ GÖREV ━━━
+Satıcının sorularını yukarıdaki verilere dayanarak yanıtla.
+Karşılaştırma yapabiliyorsan rakamları kullan.
+Öneri veriyorsan somut ve uygulanabilir ol."""
+
+    # ── Gemini contents dizisini oluştur ─────────────────────────────────────
+    # İlk eleman: sistem promptunu user mesajı olarak gönder (REST API'de system role yok)
+    contents = [
+        {"role": "user",  "parts": [{"text": system_prompt}]},
+        {"role": "model", "parts": [{"text": "Anladım. Satış verilerini inceledim, soruların için hazırım."}]},
+    ]
+
+    # Geçmiş mesajları ekle (son 10)
+    for msg in history[-10:]:
+        role = "user" if msg["role"] == "user" else "model"
+        contents.append({"role": role, "parts": [{"text": msg["text"]}]})
+
+    # Yeni kullanıcı mesajını ekle
+    contents.append({"role": "user", "parts": [{"text": message}]})
+
+    payload = {
+        "contents": contents,
+        "generationConfig": {
+            "temperature": 0.6,
+            "maxOutputTokens": 1024,
+        },
+    }
+
+    raw  = _gemini_post(payload)
+    return _extract_text(raw).strip()

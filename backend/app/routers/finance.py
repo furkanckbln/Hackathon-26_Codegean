@@ -2,9 +2,12 @@
 Finans Router
 
 Endpoint'ler:
-  GET  /finance/overview  — Genel Bakış (KPI'lar, aylık gelir, kategori, top ilanlar)
-  GET  /finance/context   — Finans Asistanı için tam finansal bağlam
-  POST /finance/chat      — Finans Asistanı sohbet
+  GET    /finance/overview          — Genel Bakış
+  GET    /finance/context           — Finans Asistanı bağlamı
+  POST   /finance/chat              — Finans Asistanı sohbet
+  GET    /finance/transactions      — Tüm finance_records (manuel + otomatik)
+  POST   /finance/transactions      — Yeni manuel kayıt ekle
+  DELETE /finance/transactions/{id} — Manuel kaydı sil
 """
 
 import asyncio
@@ -30,126 +33,145 @@ class FinanceChatRequest(BaseModel):
 router = APIRouter()
 
 
-@router.get("/overview")
-async def get_overview(current_user=Depends(get_current_user)):
-    user_id = current_user.id
-
-    # ── 1. Tüm siparişleri çek ───────────────────────────────────────────────
-    orders_res = supabase.table("orders") \
-        .select("listing_id, sale_price, cargo_price, commission_amt, cogs, net_revenue, quantity, status, order_date") \
-        .eq("seller_id", user_id) \
-        .execute()
-    orders = orders_res.data or []
-
-    # ── 2. Listing başlık + kategori haritası ────────────────────────────────
-    listings_res = supabase.table("listings") \
-        .select("id, title, category") \
+def _load_finance_records(user_id: str) -> list:
+    """Tek yerde finance_records'ı çek — tüm endpoint'ler bunu kullanır."""
+    res = supabase.table("finance_records") \
+        .select("type, amount, category, record_date, source, source_order_id") \
         .eq("user_id", user_id) \
         .execute()
-    listing_map = {l["id"]: l for l in (listings_res.data or [])}
+    return res.data or []
 
-    # ── 3. KPI'lar ──────────────────────────────────────────────────────────
-    completed = [o for o in orders if o["status"] in ("delivered", "shipped")]
-    cancelled = [o for o in orders if o["status"] == "cancelled"]
 
-    total_net_revenue   = round(sum(o["net_revenue"] or 0 for o in completed), 2)
-    total_gross_revenue = round(sum((o["sale_price"] or 0) * (o["quantity"] or 1) for o in completed), 2)
-    total_orders        = len(orders)
-    completed_count     = len(completed)
-    avg_order_value     = round(total_gross_revenue / completed_count, 2) if completed_count else 0
-    cancellation_rate   = round(len(cancelled) / total_orders * 100, 1) if total_orders else 0
-    total_commission    = round(sum(o["commission_amt"] or 0 for o in completed), 2)
-    total_cogs          = round(sum(o["cogs"] or 0 for o in completed), 2)
-    total_cargo         = round(sum(o["cargo_price"] or 0 for o in completed), 2)
+@router.get("/overview")
+async def get_overview(current_user=Depends(get_current_user)):
+    """
+    Genel Bakış — tek kaynak: finance_records.
+    Otomatik (sipariş) + manuel kayıtların tamamından hesaplanır.
+    """
+    user_id = current_user.id
+    records = _load_finance_records(user_id)
+
+    income  = [r for r in records if r["type"] == "income"]
+    expense = [r for r in records if r["type"] == "expense"]
+
+    # ── Kaynak bazlı gruplar ─────────────────────────────────────────────────
+    def amt(lst): return sum(r["amount"] or 0 for r in lst)
+
+    gross_revenue  = amt([r for r in income  if r["source"] == "order_income"])
+    total_cogs     = amt([r for r in expense if r["source"] == "order_cogs"])
+    total_commission = amt([r for r in expense if r["source"] == "order_commission"])
+    total_cargo    = amt([r for r in expense if r["source"] == "order_cargo"])
+    other_income   = amt([r for r in income  if r["source"] not in ("order_income",)])
+    manual_expense = amt([r for r in expense if r["source"] == "manual"])
+
+    net_from_sales = gross_revenue - total_cogs - total_commission - total_cargo
+    total_income   = amt(income)
+    total_expense  = amt(expense)
+    true_net       = total_income - total_expense
+
+    gross_margin = round(net_from_sales / gross_revenue * 100, 1) if gross_revenue else 0
 
     kpis = {
-        "net_revenue":       total_net_revenue,
-        "gross_revenue":     total_gross_revenue,
-        "total_orders":      total_orders,
-        "completed_orders":  completed_count,
-        "avg_order_value":   avg_order_value,
-        "cancellation_rate": cancellation_rate,
-        "total_commission":  total_commission,
-        "total_cogs":        total_cogs,
-        "total_cargo":       total_cargo,
+        "gross_revenue":     round(gross_revenue, 2),
+        "net_revenue":       round(net_from_sales, 2),   # satış net geliri
+        "true_net_profit":   round(true_net, 2),          # gerçek net kâr
+        "total_income":      round(total_income, 2),
+        "total_expense":     round(total_expense, 2),
+        "total_cogs":        round(total_cogs, 2),
+        "total_commission":  round(total_commission, 2),
+        "total_cargo":       round(total_cargo, 2),
+        "other_income":      round(other_income, 2),
+        "manual_expense":    round(manual_expense, 2),
+        "gross_margin":      gross_margin,
     }
 
-    # ── 4. Aylık gelir (son 6 ay) ────────────────────────────────────────────
-    monthly: dict[str, dict] = defaultdict(lambda: {"net_revenue": 0.0, "gross_revenue": 0.0, "orders": 0})
-    for o in completed:
-        if not o.get("order_date"):
+    # ── Aylık gelir/gider (son 6 ay) ─────────────────────────────────────────
+    monthly_inc: dict[str, float] = defaultdict(float)
+    monthly_exp: dict[str, float] = defaultdict(float)
+    for r in records:
+        ym = str(r.get("record_date") or "")[:7]
+        if not ym:
             continue
-        # order_date: "YYYY-MM-DD" string
-        ym = str(o["order_date"])[:7]   # "YYYY-MM"
-        monthly[ym]["net_revenue"]   += o["net_revenue"] or 0
-        monthly[ym]["gross_revenue"] += (o["sale_price"] or 0) * (o["quantity"] or 1)
-        monthly[ym]["orders"]        += 1
+        if r["type"] == "income":
+            monthly_inc[ym] += r["amount"] or 0
+        else:
+            monthly_exp[ym] += r["amount"] or 0
 
+    all_months = sorted(set(list(monthly_inc) + list(monthly_exp)))[-6:]
     monthly_revenue = [
         {
-            "month":         k,
-            "net_revenue":   round(v["net_revenue"], 2),
-            "gross_revenue": round(v["gross_revenue"], 2),
-            "orders":        v["orders"],
+            "month":       m,
+            "income":      round(monthly_inc.get(m, 0), 2),
+            "expense":     round(monthly_exp.get(m, 0), 2),
+            "net_revenue": round(monthly_inc.get(m, 0) - monthly_exp.get(m, 0), 2),
         }
-        for k, v in sorted(monthly.items())
+        for m in all_months
     ]
 
-    # ── 5. Sipariş durum dağılımı ────────────────────────────────────────────
+    # ── Gider dağılımı (stacked bar için) ────────────────────────────────────
+    cost_breakdown = [
+        {"label": "Ürün Maliyeti (COGS)", "value": round(total_cogs, 2),        "key": "cogs"       },
+        {"label": "Platform Komisyonu",   "value": round(total_commission, 2),   "key": "commission" },
+        {"label": "Kargo",                "value": round(total_cargo, 2),        "key": "cargo"      },
+        {"label": "Operasyonel Giderler", "value": round(manual_expense, 2),     "key": "opex"       },
+        {"label": "Net Kâr",              "value": round(true_net, 2),           "key": "profit"     },
+    ]
+
+    # ── Kategori bazında gider ────────────────────────────────────────────────
+    cat_exp: dict[str, float] = defaultdict(float)
+    for r in expense:
+        cat_exp[r["category"] or "Diğer"] += r["amount"] or 0
+
+    category_expense = sorted(
+        [{"category": k, "total": round(v, 2)} for k, v in cat_exp.items()],
+        key=lambda x: -x["total"]
+    )[:8]
+
+    # ── Sipariş durum dağılımı — hâlâ orders tablosundan (operasyonel metrik) ─
+    orders_res = supabase.table("orders") \
+        .select("status, net_revenue") \
+        .eq("seller_id", user_id).execute()
+    orders_data = orders_res.data or []
     status_map: dict[str, dict] = defaultdict(lambda: {"count": 0, "net_revenue": 0.0})
-    for o in orders:
+    for o in orders_data:
         s = o["status"] or "unknown"
         status_map[s]["count"]       += 1
         status_map[s]["net_revenue"] += o["net_revenue"] or 0
+    status_breakdown = sorted(
+        [{"status": k, "count": v["count"], "net_revenue": round(v["net_revenue"], 2)}
+         for k, v in status_map.items()],
+        key=lambda x: -x["count"]
+    )
 
-    status_breakdown = [
-        {
-            "status":      k,
-            "count":       v["count"],
-            "net_revenue": round(v["net_revenue"], 2),
-        }
-        for k, v in sorted(status_map.items(), key=lambda x: -x[1]["count"])
-    ]
+    # ── Top 5 ilan — orders + listings (operasyonel metrik) ──────────────────
+    listings_res = supabase.table("listings") \
+        .select("id, title, category").eq("user_id", user_id).execute()
+    listing_map = {l["id"]: l for l in (listings_res.data or [])}
 
-    # ── 6. Kategori bazında gelir ────────────────────────────────────────────
-    cat_map: dict[str, dict] = defaultdict(lambda: {"net_revenue": 0.0, "orders": 0})
-    for o in completed:
-        listing = listing_map.get(o["listing_id"], {})
-        cat = listing.get("category") or "Diğer"
-        cat_map[cat]["net_revenue"] += o["net_revenue"] or 0
-        cat_map[cat]["orders"]      += 1
-
-    category_revenue = [
-        {
-            "category":   k,
-            "net_revenue": round(v["net_revenue"], 2),
-            "orders":      v["orders"],
-        }
-        for k, v in sorted(cat_map.items(), key=lambda x: -x[1]["net_revenue"])
-    ]
-
-    # ── 7. En çok kazandıran 5 ilan ─────────────────────────────────────────
-    listing_perf: dict[str, dict] = defaultdict(lambda: {"net_revenue": 0.0, "orders": 0, "title": "", "category": ""})
-    for o in completed:
+    completed_orders = [o for o in orders_data if o["status"] in ("delivered", "shipped")]
+    # orders tablosunda listing_id lazım, ayrı sorgu
+    orders_full_res = supabase.table("orders") \
+        .select("listing_id, net_revenue, status") \
+        .eq("seller_id", user_id) \
+        .in_("status", ["delivered", "shipped"]).execute()
+    lperf: dict[str, dict] = defaultdict(lambda: {"net_revenue": 0.0, "orders": 0, "title": "", "category": ""})
+    for o in (orders_full_res.data or []):
         lid = o["listing_id"]
-        listing = listing_map.get(lid, {})
-        listing_perf[lid]["net_revenue"] += o["net_revenue"] or 0
-        listing_perf[lid]["orders"]      += 1
-        listing_perf[lid]["title"]        = listing.get("title", "—")
-        listing_perf[lid]["category"]     = listing.get("category", "—")
-
+        lperf[lid]["net_revenue"] += o["net_revenue"] or 0
+        lperf[lid]["orders"]      += 1
+        lperf[lid]["title"]        = listing_map.get(lid, {}).get("title", "—")
+        lperf[lid]["category"]     = listing_map.get(lid, {}).get("category", "—")
     top_listings = sorted(
-        [{"listing_id": k, **v} for k, v in listing_perf.items()],
+        [{"listing_id": k, **v, "net_revenue": round(v["net_revenue"], 2)} for k, v in lperf.items()],
         key=lambda x: -x["net_revenue"]
     )[:5]
-    for t in top_listings:
-        t["net_revenue"] = round(t["net_revenue"], 2)
 
     return {
         "kpis":             kpis,
         "monthly_revenue":  monthly_revenue,
+        "cost_breakdown":   cost_breakdown,
+        "category_expense": category_expense,
         "status_breakdown": status_breakdown,
-        "category_revenue": category_revenue,
         "top_listings":     top_listings,
     }
 
@@ -158,49 +180,46 @@ async def get_overview(current_user=Depends(get_current_user)):
 async def get_finance_context(current_user=Depends(get_current_user)):
     """
     Finans Asistanı için kapsamlı finansal bağlam.
-    Orders + finance_records tablolarını birleştirir.
+    Tek kaynak: finance_records (otomatik + manuel).
     """
     user_id = current_user.id
+    records = _load_finance_records(user_id)
 
-    # ── 1. Siparişler ────────────────────────────────────────────────────────
-    orders_res = supabase.table("orders") \
-        .select("sale_price, cargo_price, commission_amt, cogs, net_revenue, quantity, status, order_date") \
-        .eq("seller_id", user_id).execute()
-    orders = orders_res.data or []
+    income  = [r for r in records if r["type"] == "income"]
+    expense = [r for r in records if r["type"] == "expense"]
 
-    completed = [o for o in orders if o["status"] in ("delivered", "shipped")]
+    def amt(lst): return sum(r["amount"] or 0 for r in lst)
 
-    gross_revenue          = sum((o["sale_price"] or 0) * (o["quantity"] or 1) for o in completed)
-    net_revenue_from_sales = sum(o["net_revenue"] or 0 for o in completed)
-    total_cogs             = sum(o["cogs"] or 0 for o in completed)
-    total_commission       = sum(o["commission_amt"] or 0 for o in completed)
-    total_cargo            = sum(o["cargo_price"] or 0 for o in completed)
+    # ── Kaynak bazlı özet ────────────────────────────────────────────────────
+    gross_revenue    = amt([r for r in income  if r["source"] == "order_income"])
+    total_cogs       = amt([r for r in expense if r["source"] == "order_cogs"])
+    total_commission = amt([r for r in expense if r["source"] == "order_commission"])
+    total_cargo      = amt([r for r in expense if r["source"] == "order_cargo"])
+    other_income     = amt([r for r in income  if r["source"] != "order_income"])
+    manual_expense   = amt([r for r in expense if r["source"] == "manual"])
+
+    net_from_sales = gross_revenue - total_cogs - total_commission - total_cargo
+    total_income   = amt(income)
+    total_expense  = amt(expense)
+    true_net_profit = total_income - total_expense
 
     orders_summary = {
         "gross_revenue":          round(gross_revenue, 2),
-        "net_revenue_from_sales": round(net_revenue_from_sales, 2),
+        "net_revenue_from_sales": round(net_from_sales, 2),
         "total_cogs":             round(total_cogs, 2),
         "total_commission":       round(total_commission, 2),
         "total_cargo":            round(total_cargo, 2),
-        "total_orders":           len(orders),
-        "completed_orders":       len(completed),
+    }
+    records_summary = {
+        "total_income":   round(total_income, 2),
+        "total_expense":  round(total_expense, 2),
+        "other_income":   round(other_income, 2),
+        "manual_expense": round(manual_expense, 2),
     }
 
-    # ── 2. Finance Records ───────────────────────────────────────────────────
-    records_res = supabase.table("finance_records") \
-        .select("type, amount, category, record_date") \
-        .eq("user_id", user_id).execute()
-    records = records_res.data or []
-
-    income_records  = [r for r in records if r["type"] == "income"]
-    expense_records = [r for r in records if r["type"] == "expense"]
-
-    total_other_income = sum(r["amount"] or 0 for r in income_records)
-    total_expense      = sum(r["amount"] or 0 for r in expense_records)
-
-    # Gider kategorileri
+    # ── Gider kategorileri ───────────────────────────────────────────────────
     cat_exp: dict[str, dict] = defaultdict(lambda: {"total": 0.0, "count": 0})
-    for r in expense_records:
+    for r in expense:
         cat = r.get("category") or "Diğer"
         cat_exp[cat]["total"] += r["amount"] or 0
         cat_exp[cat]["count"] += 1
@@ -211,45 +230,36 @@ async def get_finance_context(current_user=Depends(get_current_user)):
         key=lambda x: -x["total"]
     )
 
-    records_summary = {
-        "total_income":  round(total_other_income, 2),
-        "total_expense": round(total_expense, 2),
-    }
+    # ── Aylık nakit akışı ────────────────────────────────────────────────────
+    monthly_inc: dict[str, float] = defaultdict(float)
+    monthly_exp: dict[str, float] = defaultdict(float)
+    for r in records:
+        ym = str(r.get("record_date") or "")[:7]
+        if not ym:
+            continue
+        if r["type"] == "income":
+            monthly_inc[ym] += r["amount"] or 0
+        else:
+            monthly_exp[ym] += r["amount"] or 0
 
-    # ── 3. Gerçek Net Kâr ────────────────────────────────────────────────────
-    true_net_profit = round(net_revenue_from_sales + total_other_income - total_expense, 2)
-
-    # ── 4. Aylık nakit akışı ─────────────────────────────────────────────────
-    monthly_orders: dict[str, float]  = defaultdict(float)
-    for o in completed:
-        if o.get("order_date"):
-            ym = str(o["order_date"])[:7]
-            monthly_orders[ym] += o["net_revenue"] or 0
-
-    monthly_expenses: dict[str, float] = defaultdict(float)
-    for r in expense_records:
-        if r.get("record_date"):
-            ym = str(r["record_date"])[:7]
-            monthly_expenses[ym] += r["amount"] or 0
-
-    all_months = sorted(set(list(monthly_orders.keys()) + list(monthly_expenses.keys())))
+    all_months = sorted(set(list(monthly_inc) + list(monthly_exp)))[-6:]
     monthly_cashflow = [
         {
             "month":      m,
-            "orders_net": round(monthly_orders.get(m, 0), 2),
-            "expenses":   round(monthly_expenses.get(m, 0), 2),
-            "net":        round(monthly_orders.get(m, 0) - monthly_expenses.get(m, 0), 2),
+            "orders_net": round(monthly_inc.get(m, 0), 2),   # artık tüm gelir
+            "expenses":   round(monthly_exp.get(m, 0), 2),
+            "net":        round(monthly_inc.get(m, 0) - monthly_exp.get(m, 0), 2),
         }
-        for m in all_months[-6:]   # son 6 ay
+        for m in all_months
     ]
 
     return {
-        "orders_summary":   orders_summary,
-        "records_summary":  records_summary,
-        "true_net_profit":  true_net_profit,
+        "orders_summary":    orders_summary,
+        "records_summary":   records_summary,
+        "true_net_profit":   round(true_net_profit, 2),
         "expense_breakdown": expense_breakdown,
-        "monthly_cashflow": monthly_cashflow,
-        "period_months":    6,
+        "monthly_cashflow":  monthly_cashflow,
+        "period_months":     6,
     }
 
 
@@ -270,3 +280,93 @@ async def finance_chat(
         raise HTTPException(status_code=500, detail=f"Asistan yanıt üretemedi: {str(e)}")
 
     return {"reply": reply}
+
+
+# ── Transactions CRUD ────────────────────────────────────────────────────────
+
+# Manuel kayıt eklemek için izin verilen source değerleri
+MANUAL_SOURCES = {None, "", "manual"}
+
+class TransactionCreate(BaseModel):
+    type:        str            # "income" | "expense"
+    amount:      float
+    category:    str
+    description: str = ""
+    record_date: str            # "YYYY-MM-DD"
+
+
+@router.get("/transactions")
+async def list_transactions(current_user=Depends(get_current_user)):
+    """
+    Tüm finance_records'ı döndürür (manuel + trigger kaynaklı otomatikler).
+    record_date azalan sırada (en yeni üstte).
+    """
+    res = supabase.table("finance_records") \
+        .select("id, type, amount, category, description, record_date, source, source_order_id, created_at") \
+        .eq("user_id", current_user.id) \
+        .order("record_date", desc=True) \
+        .order("created_at", desc=True) \
+        .execute()
+    return res.data or []
+
+
+@router.post("/transactions", status_code=201)
+async def create_transaction(
+    body: TransactionCreate,
+    current_user=Depends(get_current_user),
+):
+    """Manuel gelir/gider kaydı ekle."""
+    if body.type not in ("income", "expense"):
+        raise HTTPException(status_code=422, detail="type 'income' veya 'expense' olmalı.")
+    if body.amount <= 0:
+        raise HTTPException(status_code=422, detail="amount sıfırdan büyük olmalı.")
+
+    row = {
+        "user_id":     current_user.id,
+        "type":        body.type,
+        "amount":      round(body.amount, 2),
+        "category":    body.category,
+        "description": body.description,
+        "record_date": body.record_date,
+        "source":      "manual",
+    }
+    res = supabase.table("finance_records").insert(row).execute()
+    if not res.data:
+        raise HTTPException(status_code=500, detail="Kayıt eklenemedi.")
+    return res.data[0]
+
+
+@router.delete("/transactions/{record_id}", status_code=204)
+async def delete_transaction(
+    record_id: str,
+    current_user=Depends(get_current_user),
+):
+    """
+    Manuel kaydı siler. Otomatik (trigger kaynaklı) kayıtlar silinemez.
+    """
+    # Kaydı çek — hem sahiplik hem kaynak kontrolü
+    res = supabase.table("finance_records") \
+        .select("id, source, user_id") \
+        .eq("id", record_id) \
+        .eq("user_id", current_user.id) \
+        .single() \
+        .execute()
+
+    record = res.data
+    if not record:
+        raise HTTPException(status_code=404, detail="Kayıt bulunamadı.")
+
+    # Otomatik kayıtları silmeye izin verme
+    if record.get("source") and record["source"] not in MANUAL_SOURCES:
+        raise HTTPException(
+            status_code=403,
+            detail="Otomatik oluşturulan kayıtlar silinemez."
+        )
+
+    supabase.table("finance_records") \
+        .delete() \
+        .eq("id", record_id) \
+        .eq("user_id", current_user.id) \
+        .execute()
+
+    return None

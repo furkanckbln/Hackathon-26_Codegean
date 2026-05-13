@@ -44,44 +44,60 @@ function KpiCard({ icon, label, value, sub, color = 'blue' }) {
 // ── Aylık Gelir Grafik (CSS Bar Chart) ──────────────────────────────────────
 function MonthlyChart({ data }) {
   if (!data?.length) return null
-  const maxVal = Math.max(...data.map(d => d.net_revenue), 1)
+  const maxVal = Math.max(...data.map(d => Math.max(d.income || 0, d.expense || 0)), 1)
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-6">
-      <h3 className="text-sm font-semibold text-gray-700 mb-4">📈 Aylık Net Gelir</h3>
-      <div className="flex items-end gap-2 h-40">
+      <h3 className="text-sm font-semibold text-gray-700 mb-4">📈 Aylık Gelir / Gider</h3>
+      <div className="flex items-end gap-3 h-40">
         {data.map((d) => {
-          const pct = Math.max((d.net_revenue / maxVal) * 100, 2)
+          const incPct = Math.max(((d.income || 0) / maxVal) * 100, 2)
+          const expPct = Math.max(((d.expense || 0) / maxVal) * 100, 2)
           return (
             <div key={d.month} className="flex-1 flex flex-col items-center gap-1 group">
-              {/* Tooltip */}
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-gray-800 text-white rounded px-2 py-1 whitespace-nowrap">
-                ₺{fmtK(d.net_revenue)} · {d.orders} sipariş
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-gray-800 text-white rounded px-2 py-1 whitespace-nowrap text-center">
+                <div>Gelir: ₺{fmtK(d.income)}</div>
+                <div>Gider: ₺{fmtK(d.expense)}</div>
               </div>
-              <div className="w-full flex items-end" style={{ height: '100%' }}>
-                <div
-                  className="w-full bg-blue-500 hover:bg-blue-600 transition-colors rounded-t-lg"
-                  style={{ height: `${pct}%` }}
-                />
+              <div className="w-full flex items-end gap-0.5" style={{ height: '100%' }}>
+                <div className="flex-1 bg-green-400 hover:bg-green-500 transition-colors rounded-t"
+                  style={{ height: `${incPct}%` }} />
+                <div className="flex-1 bg-red-300 hover:bg-red-400 transition-colors rounded-t"
+                  style={{ height: `${expPct}%` }} />
               </div>
               <span className="text-[10px] text-gray-400">{monthLabel(d.month)}</span>
             </div>
           )
         })}
       </div>
+      <div className="flex gap-4 mt-2">
+        <span className="flex items-center gap-1 text-xs text-gray-400">
+          <span className="w-2.5 h-2.5 rounded-sm bg-green-400 inline-block" /> Gelir
+        </span>
+        <span className="flex items-center gap-1 text-xs text-gray-400">
+          <span className="w-2.5 h-2.5 rounded-sm bg-red-300 inline-block" /> Gider
+        </span>
+      </div>
     </div>
   )
 }
 
 // ── Gider Dağılımı (yatay bar) ───────────────────────────────────────────────
-function CostBreakdown({ kpis }) {
+function CostBreakdown({ kpis, costBreakdown }) {
   if (!kpis) return null
-  const items = [
-    { label: 'Maliyet (COGS)',  value: kpis.total_cogs,       color: 'bg-red-400'    },
-    { label: 'Komisyon',        value: kpis.total_commission,  color: 'bg-orange-400' },
-    { label: 'Kargo',           value: kpis.total_cargo,       color: 'bg-yellow-400' },
-    { label: 'Net Kâr',         value: kpis.net_revenue,       color: 'bg-green-500'  },
-  ]
+  const items = costBreakdown?.length
+    ? costBreakdown.map((c, i) => ({
+        label: c.label,
+        value: c.value,
+        color: ['bg-red-400','bg-orange-400','bg-yellow-400','bg-purple-400','bg-green-500'][i] || 'bg-gray-300',
+      }))
+    : [
+        { label: 'Maliyet (COGS)',      value: kpis.total_cogs,      color: 'bg-red-400'    },
+        { label: 'Komisyon',            value: kpis.total_commission, color: 'bg-orange-400' },
+        { label: 'Kargo',               value: kpis.total_cargo,      color: 'bg-yellow-400' },
+        { label: 'Operasyonel Giderler',value: kpis.manual_expense,   color: 'bg-purple-400' },
+        { label: 'Net Kâr',             value: kpis.true_net_profit,  color: 'bg-green-500'  },
+      ]
   const total = items.reduce((s, i) => s + (i.value || 0), 0)
 
   return (
@@ -236,7 +252,7 @@ export default function FinancePage() {
     </Layout>
   )
 
-  const { kpis, monthly_revenue, status_breakdown, category_revenue, top_listings } = data
+  const { kpis, monthly_revenue, cost_breakdown, category_expense, status_breakdown, top_listings } = data
 
   return (
     <Layout>
@@ -258,44 +274,44 @@ export default function FinancePage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KpiCard
           icon="💰"
-          label="Net Gelir"
-          value={`₺${fmtK(kpis.net_revenue)}`}
-          sub={`Brüt: ₺${fmtK(kpis.gross_revenue)}`}
+          label="Gerçek Net Kâr"
+          value={`₺${fmtK(kpis.true_net_profit)}`}
+          sub={`Brüt hasılat: ₺${fmtK(kpis.gross_revenue)}`}
           color="green"
         />
         <KpiCard
-          icon="🛒"
-          label="Toplam Sipariş"
-          value={kpis.total_orders}
-          sub={`${kpis.completed_orders} tamamlandı`}
+          icon="📥"
+          label="Toplam Gelir"
+          value={`₺${fmtK(kpis.total_income)}`}
+          sub={`Sipariş + diğer gelirler`}
           color="blue"
         />
         <KpiCard
-          icon="📊"
-          label="Ortalama Sepet"
-          value={`₺${fmtK(kpis.avg_order_value)}`}
-          sub="Tamamlanan siparişler"
+          icon="📤"
+          label="Toplam Gider"
+          value={`₺${fmtK(kpis.total_expense)}`}
+          sub={`COGS + komisyon + operasyonel`}
           color="orange"
         />
         <KpiCard
-          icon="❌"
-          label="İptal Oranı"
-          value={`%${kpis.cancellation_rate}`}
-          sub="Tüm siparişler"
-          color={kpis.cancellation_rate > 10 ? 'red' : 'blue'}
+          icon="📊"
+          label="Brüt Marj"
+          value={`%${kpis.gross_margin}`}
+          sub="Sipariş gelirinden"
+          color={kpis.gross_margin > 40 ? 'green' : 'red'}
         />
       </div>
 
       {/* Grafik + Gider Dağılımı */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <MonthlyChart data={monthly_revenue} />
-        <CostBreakdown kpis={kpis} />
+        <CostBreakdown kpis={kpis} costBreakdown={cost_breakdown} />
       </div>
 
-      {/* Alt satır: Durum + Kategori + Top ilanlar */}
+      {/* Alt satır: Durum + Kategori Gider + Top ilanlar */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <StatusBreakdown data={status_breakdown} />
-        <CategoryTable   data={category_revenue} />
+        <CategoryTable   data={category_expense?.map(c => ({ category: c.category, net_revenue: c.total, orders: 0 }))} />
         <TopListings     data={top_listings} />
       </div>
     </Layout>

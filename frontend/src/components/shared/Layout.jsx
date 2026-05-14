@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { useAlerts } from '../../context/AlertContext'
 
 const salesMenuItems = [
   { to: '/dashboard',       icon: '📋', label: 'İlanlarım'         },
@@ -21,6 +22,8 @@ export default function Layout({ children }) {
   const navigate         = useNavigate()
   const location         = useLocation()
   const [collapsed, setCollapsed] = useState(false)
+
+  const { hasCritical, unreadCount } = useAlerts()
 
   const isFinance = location.pathname.startsWith('/finance')
 
@@ -108,10 +111,33 @@ export default function Layout({ children }) {
             </button>
           </div>
 
-          {/* Mağaza adı */}
-          <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-xs font-medium">
-            <span>🏪</span>
-            <span>{user?.user_metadata?.store_name || user?.email}</span>
+          <div className="flex items-center gap-3">
+            {/* Anomali Bildirimi Zili */}
+            <button
+              onClick={() => navigate('/alerts')}
+              className={`relative p-2 rounded-xl transition-colors
+                ${hasCritical
+                  ? 'bg-red-100 hover:bg-red-200 text-red-600 animate-pulse'
+                  : unreadCount > 0
+                    ? 'bg-orange-100 hover:bg-orange-200 text-orange-600'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-500'}`}
+              title={hasCritical ? 'Kritik uyarı var!' : unreadCount > 0 ? `${unreadCount} uyarı` : 'Anomali Uyarıları'}
+            >
+              <span className="text-lg leading-none">🔔</span>
+              {unreadCount > 0 && (
+                <span className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center
+                  text-[10px] font-bold text-white rounded-full px-1
+                  ${hasCritical ? 'bg-red-500' : 'bg-orange-500'}`}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Mağaza adı */}
+            <div className="flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-full text-xs font-medium">
+              <span>🏪</span>
+              <span>{user?.user_metadata?.store_name || user?.email}</span>
+            </div>
           </div>
         </header>
         <main className="flex-1 overflow-auto p-6">

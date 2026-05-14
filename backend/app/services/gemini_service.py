@@ -18,7 +18,6 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv()
-
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL   = "gemini-2.5-flash"
 GEMINI_URL     = (
@@ -432,6 +431,97 @@ Sektör benchmark'larını biliyorsan paylaş (örn. "e-ticarette reklam/hasıla
     contents = [
         {"role": "user",  "parts": [{"text": system_prompt}]},
         {"role": "model", "parts": [{"text": "Anladım. Finansal tablo elimde, sorularını bekliyorum."}]},
+    ]
+    for msg in history[-10:]:
+        role = "user" if msg["role"] == "user" else "model"
+        contents.append({"role": role, "parts": [{"text": msg["text"]}]})
+    contents.append({"role": "user", "parts": [{"text": message}]})
+
+    payload = {
+        "contents": contents,
+        "generationConfig": {
+            "temperature": 0.5,
+            "maxOutputTokens": 3000,
+        },
+    }
+
+    raw = _gemini_post(payload)
+    return _extract_text(raw).strip()
+
+
+# ── Anomali / Uyarı Asistanı Chat (SYNC) ────────────────────────────────────
+def alert_assistant_chat(
+    message: str,
+    history: list,
+    alerts:  list,
+    context: dict,
+) -> str:
+    """
+    Anomali asistanı sohbet fonksiyonu. (senkron)
+    Router'dan asyncio.to_thread() ile çağrılır.
+
+    Args:
+        message : Kullanıcının yeni mesajı
+        history : [{"role": "user"|"ai", "text": "..."}] — son 10 mesaj
+        alerts  : _detect_anomalies() çıktısı — tespit edilen anomali listesi
+        context : /finance/context'ten gelen özet finansal bağlam (isteğe bağlı)
+    """
+
+    has_critical = any(a.get("severity") == "critical" for a in alerts)
+
+    # ── Alert listesini metne çevir ──────────────────────────────────────────
+    SEVERITY_TR = {"critical": "🚨 KRİTİK", "medium": "⚠️ ORTA", "low": "ℹ️ DÜŞÜK"}
+    alerts_text = ""
+    for a in alerts:
+        sev   = SEVERITY_TR.get(a.get("severity"), a.get("severity", "").upper())
+        title = a.get("title", "Uyarı")
+        desc  = a.get("description", "")
+        detail = a.get("detail", "")
+        alerts_text += f"\n[{sev}] {title}\n  {desc}"
+        if detail:
+            alerts_text += f"\n  Detay: {detail}"
+        alerts_text += "\n"
+
+    if not alerts_text:
+        alerts_text = "  Aktif anomali yok."
+
+    # ── Bağlam finansal özet ─────────────────────────────────────────────────
+    profit  = context.get("true_net_profit", 0)
+    monthly = context.get("monthly_cashflow", [])
+    monthly_text = "\n".join([
+        f"  {m['month']}: Net ₺{m['net']:,.0f}"
+        for m in monthly[-3:]
+    ]) or "  Veri yok."
+
+    urgent_prefix = (
+        "⚠️ DİKKAT: Mağazanda KRİTİK düzeyde anomali(ler) tespit edildi. "
+        "Acil aksiyon alman gerekiyor.\n\n"
+        if has_critical else ""
+    )
+
+    system_prompt = f"""{urgent_prefix}Sen SellerAI platformunun uzman bir KOBİ finansal risk danışmanısın.
+Türk küçük ölçekli e-ticaret satıcılarına tespit edilen finansal anomaliler hakkında \
+somut, uygulanabilir ve aciliyet sırasına göre öneriler veriyorsun. \
+Her zaman Türkçe yanıt ver. Gereksiz giriş cümleleri kurma. Kısa ve net ol.
+
+━━━ TESPİT EDİLEN ANOMALİLER ━━━
+{alerts_text}
+━━━ MEVCUT FİNANSAL DURUM (ÖZET) ━━━
+  Gerçek net kâr   : ₺{profit:,.0f}
+  Son 3 ay net akışı:
+{monthly_text}
+
+━━━ GÖREV ━━━
+• Satıcının anomalilerle ilgili sorularını yanıtla.
+• Hangi anomalinin daha acil olduğunu önceliklendir.
+• Kritik uyarılar için somut, hemen uygulanabilir adımlar öner.
+• Gerektiğinde sektör benchmark'larını paylaş (örn. "reklam/hasılat %5-10 olmalı").
+• Satıcıyı korkutma — çözüm odaklı, güven verici bir ton kullan."""
+
+    # ── Gemini contents dizisi ───────────────────────────────────────────────
+    contents = [
+        {"role": "user",  "parts": [{"text": system_prompt}]},
+        {"role": "model", "parts": [{"text": "Anladım. Tespit edilen anomalileri inceledim, soruların için hazırım."}]},
     ]
     for msg in history[-10:]:
         role = "user" if msg["role"] == "user" else "model"

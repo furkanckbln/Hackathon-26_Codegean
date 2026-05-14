@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { AlertProvider } from './context/AlertContext'
+import ErrorBoundary from './components/shared/ErrorBoundary'
 import LoginPage      from './pages/LoginPage'
 import RegisterPage   from './pages/RegisterPage'
 import DashboardPage  from './pages/DashboardPage'
@@ -10,6 +12,7 @@ import FinanceAssistantPage    from './pages/FinanceAssistantPage'
 import CompetitorPage          from './pages/CompetitorPage'
 import ListingDetailPage       from './pages/ListingDetailPage'
 import SalesAssistantPage      from './pages/SalesAssistantPage'
+import AlertsPage              from './pages/AlertsPage'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -37,6 +40,7 @@ function AppRoutes() {
       <Route path="/competitor"            element={<ProtectedRoute><CompetitorPage /></ProtectedRoute>} />
       <Route path="/listings/:id"      element={<ProtectedRoute><ListingDetailPage /></ProtectedRoute>} />
       <Route path="/sales-assistant"  element={<ProtectedRoute><SalesAssistantPage /></ProtectedRoute>} />
+      <Route path="/alerts"           element={<ProtectedRoute><ErrorBoundary><AlertsPage /></ErrorBoundary></ProtectedRoute>} />
     </Routes>
   )
 }
@@ -45,7 +49,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <AlertProvider>
+          <AppRoutes />
+        </AlertProvider>
       </AuthProvider>
     </BrowserRouter>
   )

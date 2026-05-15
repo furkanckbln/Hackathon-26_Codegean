@@ -45,6 +45,8 @@ class CreateListingRequest(BaseModel):
     category:        str
     brand:           Optional[str] = ""
     price:           float
+    cost_price:      Optional[float] = 0.0
+    cargo_price:     Optional[float] = 29.90   # >0 müşteri öder | <0 satıcı öder | 0 ücretsiz
     stock:           int
     variant:         Optional[str] = ""
     shipping_day:    Optional[str] = ""

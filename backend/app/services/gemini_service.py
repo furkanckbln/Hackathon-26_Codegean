@@ -363,16 +363,20 @@ def finance_assistant_chat(
         context : /finance/context endpoint'inden gelen veri sözlüğü
     """
 
-    orders   = context.get("orders_summary", {})
-    records  = context.get("records_summary", {})
-    profit   = context.get("true_net_profit", 0)
-    monthly  = context.get("monthly_cashflow", [])
-    expenses = context.get("expense_breakdown", [])
-    period   = context.get("period_months", 6)
+    orders         = context.get("orders_summary", {})
+    records        = context.get("records_summary", {})
+    profit         = context.get("true_net_profit", 0)
+    monthly        = context.get("monthly_cashflow", [])
+    expenses       = context.get("expense_breakdown", [])
+    period         = context.get("period_months", 6)
+    cat_margins    = context.get("category_margins", [])
+    order_health   = context.get("order_health", {})
+    top_profitable = context.get("top_profitable", [])
+    slow_movers_c  = context.get("slow_movers_count", 0)
 
     # Aylık nakit akışı özeti
     monthly_text = "\n".join([
-        f"  {m['month']}: Satış geliri ₺{m['orders_net']:,.0f} | "
+        f"  {m['month']}: Gelir ₺{m['orders_net']:,.0f} | "
         f"Gider ₺{m['expenses']:,.0f} | Net ₺{m['net']:,.0f}"
         for m in monthly
     ]) or "  Henüz aylık veri yok."
@@ -383,12 +387,24 @@ def finance_assistant_chat(
         for e in expenses
     ]) or "  Gider kaydı yok."
 
+    # Kategori marjları
+    cat_margin_text = "\n".join([
+        f"  {c['category']}: ₺{c['revenue']:,.0f} ciro | %{c['margin_pct']} brüt marj | {c['orders']} sipariş"
+        for c in cat_margins
+    ]) or "  Henüz sipariş verisi yok."
+
+    # En kârlı ilanlar
+    top_text = "\n".join([
+        f"  {i+1}. {p['title'][:45]}: ₺{p['net_revenue']:,.0f} net kâr ({p['orders']} sipariş)"
+        for i, p in enumerate(top_profitable)
+    ]) or "  Henüz sipariş verisi yok."
+
     # Marj hesapları
     gross = orders.get("gross_revenue", 0)
-    gross_margin = round((orders.get("net_revenue_from_sales", 0) / gross * 100), 1) if gross else 0
-    true_margin  = round((profit / gross * 100), 1) if gross else 0
-    rec_expense  = records.get("total_expense", 0)
-    marketing    = next((e["total"] for e in expenses if "Reklam" in e["category"]), 0)
+    gross_margin  = round((orders.get("net_revenue_from_sales", 0) / gross * 100), 1) if gross else 0
+    true_margin   = round((profit / gross * 100), 1) if gross else 0
+    rec_expense   = records.get("total_expense", 0)
+    marketing     = next((e["total"] for e in expenses if "Reklam" in e["category"]), 0)
     marketing_pct = round((marketing / gross * 100), 1) if gross else 0
 
     system_prompt = f"""Sen SellerAI platformunun uzman bir KOBİ finansal danışmanısın.
@@ -397,35 +413,48 @@ somut, veri odaklı öneriler veriyorsun. Her zaman Türkçe yanıt ver. Gereksi
 
 ━━━ SON {period} AYLIK FİNANSAL TABLO ━━━
 
-SATIŞ GELİRLERİ (Sipariş Tablosu):
+SATIŞ GELİRLERİ:
   Brüt satış hasılatı : ₺{gross:,.0f}
   COGS (maliyet)      : ₺{orders.get('total_cogs', 0):,.0f}
   Komisyon            : ₺{orders.get('total_commission', 0):,.0f}
   Kargo               : ₺{orders.get('total_cargo', 0):,.0f}
   Satış net geliri    : ₺{orders.get('net_revenue_from_sales', 0):,.0f}  (brüt marj %{gross_margin})
-  Tamamlanan sipariş  : {orders.get('completed_orders', 0)} adet
 
-OPERASYONEL GİDERLER (Manuel Kayıtlar):
+OPERASYONEL GİDERLER:
 {expense_text}
   ──────────────────────────────────────
   Toplam operasyonel gider : ₺{rec_expense:,.0f}
-  Toplam diğer gelir       : ₺{records.get('total_income', 0):,.0f}
 
 GERÇEK NET KÂR:
-  ₺{profit:,.0f}  (gerçek net marj %{true_margin})
-  [Formül: Satış net geliri + Diğer gelirler - Operasyonel giderler]
+  ₺{profit:,.0f}  (net marj %{true_margin})
 
-PAZARLAMA/REKLAM HARCAMASI:
+PAZARLAMA / REKLAM:
   ₺{marketing:,.0f} → Brüt hasılatın %{marketing_pct}'i
+  (Sektör standardı: %5-10; %15 üzeri yüksek risk)
 
-AYLIK NAKİT AKIŞI:
+AYLIK NAKİT AKIŞI (son {period} ay):
 {monthly_text}
+
+━━━ KATEGORİ PERFORMANSI ━━━
+{cat_margin_text}
+
+━━━ SİPARİŞ SAĞLIĞI ━━━
+  Toplam sipariş    : {order_health.get('total_orders', 0)} adet
+  Tamamlanma oranı  : %{order_health.get('completion_rate', 0)}
+  İptal/İade oranı  : %{order_health.get('refund_cancel_rate', 0)}
+  Ortalama sepet    : ₺{order_health.get('avg_basket', 0):,.0f}
+  (Sektör standardı: tamamlanma >%80, iptal/iade <%10)
+
+━━━ EN KÂRLI 5 ÜRÜN ━━━
+{top_text}
+
+━━━ DİKKAT ━━━
+  Yavaş dönen aktif ilan : {slow_movers_c} adet  (stok>5, satış<5)
 
 ━━━ GÖREV ━━━
 Satıcının sorularını bu verilere dayanarak yanıtla.
-Somut rakamlar kullan. Kıyaslama yapabiliyorsan yap.
-Öneri veriyorsan uygulanabilir ve kısa ol.
-Sektör benchmark'larını biliyorsan paylaş (örn. "e-ticarette reklam/hasılat oranı genelde %5-10 olmalı")."""
+Somut rakamlar ve yüzdeler kullan. Sektör benchmark'larıyla kıyasla.
+Öneri veriyorsan uygulanabilir ve özlü ol."""
 
     # Gemini contents dizisi
     contents = [

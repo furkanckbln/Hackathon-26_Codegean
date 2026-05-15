@@ -22,11 +22,16 @@ export function AuthProvider({ children }) {
     return () => listener.subscription.unsubscribe()
   }, [])
 
-  const register = async (email, password, storeName) => {
+  const register = async (email, password, storeName, userType = 'seller') => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { store_name: storeName } },
+      options: {
+        data: {
+          store_name: storeName || '',
+          user_type:  userType,
+        },
+      },
     })
     if (error) throw error
     return data
@@ -42,8 +47,11 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
   }
 
+  /** Mevcut kullanıcının tipini döndürür: 'seller' | 'customer' */
+  const getUserType = () => user?.user_metadata?.user_type ?? 'seller'
+
   return (
-    <AuthContext.Provider value={{ user, loading, register, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, register, login, logout, getUserType }}>
       {children}
     </AuthContext.Provider>
   )

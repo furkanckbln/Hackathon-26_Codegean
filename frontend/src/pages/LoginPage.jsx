@@ -16,8 +16,9 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await login(email, password)
-      navigate('/dashboard')
+      const data = await login(email, password)
+      const userType = data?.user?.user_metadata?.user_type ?? 'seller'
+      navigate(userType === 'customer' ? '/store' : '/dashboard')
     } catch (err) {
       setError(err.message || 'Giriş başarısız.')
     } finally {

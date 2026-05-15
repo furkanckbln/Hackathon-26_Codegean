@@ -68,6 +68,7 @@ const EMPTY_FORM = {
   brand:       '',
   price:       '',
   costPrice:   '',
+  cargoPrice:  '29.90',
   stock:       '',
   variant:     '',
   shippingDay: '',
@@ -253,8 +254,9 @@ export default function NewListingPage() {
         features:        form.features,
         seo_tags:        form.seoTags,
         category:        category,
-        price:           parseFloat(form.price)     || 0,
+        price:           parseFloat(form.price)      || 0,
         cost_price:      parseFloat(form.costPrice)  || 0,
+        cargo_price:     parseFloat(form.cargoPrice) ?? 29.90,
         stock:           parseInt(form.stock)        || 0,
         clean_image_url: cleanImage,
       })
@@ -428,6 +430,30 @@ export default function NewListingPage() {
                     <input type="number" value={form.costPrice} onChange={e => updateForm('costPrice', e.target.value)}
                       placeholder="0.00"
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Kargo Ücreti (₺)
+                      <span className="text-gray-400 font-normal ml-1">— pozitif: müşteri öder · negatif: satıcı karşılar · 0: ücretsiz</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={form.cargoPrice}
+                      onChange={e => updateForm('cargoPrice', e.target.value)}
+                      placeholder="29.90"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    {form.cargoPrice !== '' && (
+                      <p className="mt-1 text-[11px] font-medium
+                        ${parseFloat(form.cargoPrice) < 0 ? 'text-orange-500' : parseFloat(form.cargoPrice) === 0 ? 'text-green-600' : 'text-blue-500'}">
+                        {parseFloat(form.cargoPrice) < 0
+                          ? `Satıcı ${Math.abs(parseFloat(form.cargoPrice)).toFixed(2)} ₺ kargo üstleniyor — finance_records'a gider kaydı gider`
+                          : parseFloat(form.cargoPrice) === 0
+                          ? 'Ücretsiz kargo — satıcı karşılar, gider kaydı tutulmaz'
+                          : `Müşteri ${parseFloat(form.cargoPrice).toFixed(2)} ₺ kargo öder`}
+                      </p>
+                    )}
                   </div>
                 </div>
 

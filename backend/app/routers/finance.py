@@ -39,10 +39,19 @@ router = APIRouter()
 def _load_finance_records(user_id: str) -> list:
     """Tek yerde finance_records'ı çek — tüm endpoint'ler bunu kullanır."""
     res = supabase.table("finance_records") \
-        .select("type, amount, category, record_date, source, source_order_id") \
+        .select("type, amount, category, record_date, source, source_order_id, created_at") \
         .eq("user_id", user_id) \
         .execute()
     return res.data or []
+
+
+def _record_ym(r: dict) -> str:
+    """
+    Kayıt için YYYY-MM döner.
+    record_date NULL ise created_at'a düşer (trigger kayıtlarında record_date boş olabilir).
+    """
+    date_str = r.get("record_date") or r.get("created_at") or ""
+    return str(date_str)[:7]
 
 
 @router.get("/overview")
@@ -92,8 +101,8 @@ async def get_overview(current_user=Depends(get_current_user)):
     monthly_inc: dict[str, float] = defaultdict(float)
     monthly_exp: dict[str, float] = defaultdict(float)
     for r in records:
-        ym = str(r.get("record_date") or "")[:7]
-        if not ym:
+        ym = _record_ym(r)
+        if not ym or len(ym) < 7:
             continue
         if r["type"] == "income":
             monthly_inc[ym] += r["amount"] or 0
@@ -237,8 +246,8 @@ async def get_finance_context(current_user=Depends(get_current_user)):
     monthly_inc: dict[str, float] = defaultdict(float)
     monthly_exp: dict[str, float] = defaultdict(float)
     for r in records:
-        ym = str(r.get("record_date") or "")[:7]
-        if not ym:
+        ym = _record_ym(r)
+        if not ym or len(ym) < 7:
             continue
         if r["type"] == "income":
             monthly_inc[ym] += r["amount"] or 0
@@ -256,6 +265,87 @@ async def get_finance_context(current_user=Depends(get_current_user)):
         for m in all_months
     ]
 
+    # ── Kategori bazında marj (orders + listings) ────────────────────────────
+    orders_res = supabase.table("orders") \
+        .select("listing_id, sale_price, quantity, cogs, net_revenue, status") \
+        .eq("seller_id", user_id) \
+        .in_("status", ["delivered", "shipped"]).execute()
+    orders_data = orders_res.data or []
+
+    listings_res = supabase.table("listings") \
+        .select("id, title, category, stock, sales_count, status") \
+        .eq("user_id", user_id).execute()
+    listing_map = {l["id"]: l for l in (listings_res.data or [])}
+
+    cat_revenue: dict[str, float] = defaultdict(float)
+    cat_cogs:    dict[str, float] = defaultdict(float)
+    cat_orders_:  dict[str, int]  = defaultdict(int)
+    for o in orders_data:
+        lid = o["listing_id"]
+        cat = listing_map.get(lid, {}).get("category", "Diğer") or "Diğer"
+        rev = (o["sale_price"] or 0) * (o["quantity"] or 1)
+        cat_revenue[cat] += rev
+        cat_cogs[cat]    += o["cogs"] or 0
+        cat_orders_[cat] += 1
+
+    category_margins = sorted([
+        {
+            "category":   cat,
+            "revenue":    round(cat_revenue[cat], 2),
+            "cogs":       round(cat_cogs[cat], 2),
+            "orders":     cat_orders_[cat],
+            "margin_pct": round((cat_revenue[cat] - cat_cogs[cat]) / cat_revenue[cat] * 100, 1)
+                          if cat_revenue[cat] > 0 else 0,
+        }
+        for cat in cat_revenue
+    ], key=lambda x: -x["revenue"])[:8]
+
+    # ── Sipariş sağlığı ──────────────────────────────────────────────────────
+    all_orders_res = supabase.table("orders") \
+        .select("status, sale_price, quantity") \
+        .eq("seller_id", user_id).execute()
+    all_orders = all_orders_res.data or []
+
+    total_orders = len(all_orders)
+    completed_   = sum(1 for o in all_orders if o["status"] in ("delivered", "shipped"))
+    cancelled_   = sum(1 for o in all_orders if o["status"] == "cancelled")
+    refunded_    = sum(1 for o in all_orders if o["status"] == "refunded")
+    total_rev_c  = sum((o["sale_price"] or 0) * (o["quantity"] or 1)
+                       for o in all_orders if o["status"] in ("delivered", "shipped"))
+
+    order_health = {
+        "total_orders":       total_orders,
+        "completion_rate":    round(completed_ / total_orders * 100, 1) if total_orders else 0,
+        "refund_cancel_rate": round((cancelled_ + refunded_) / total_orders * 100, 1) if total_orders else 0,
+        "avg_basket":         round(total_rev_c / completed_, 2) if completed_ else 0,
+    }
+
+    # ── En kârlı 5 ilan ──────────────────────────────────────────────────────
+    lperf: dict[str, dict] = defaultdict(lambda: {
+        "net_revenue": 0.0, "orders": 0, "title": "", "category": ""
+    })
+    for o in orders_data:
+        lid = o["listing_id"]
+        lperf[lid]["net_revenue"] += o["net_revenue"] or 0
+        lperf[lid]["orders"]      += 1
+        lperf[lid]["title"]        = listing_map.get(lid, {}).get("title", "—")
+        lperf[lid]["category"]     = listing_map.get(lid, {}).get("category", "—")
+
+    top_profitable = sorted(
+        [{"title": v["title"], "category": v["category"],
+          "net_revenue": round(v["net_revenue"], 2), "orders": v["orders"]}
+         for v in lperf.values()],
+        key=lambda x: -x["net_revenue"]
+    )[:5]
+
+    # ── Yavaş dönen stok sayısı ───────────────────────────────────────────────
+    slow_movers_count = sum(
+        1 for l in (listings_res.data or [])
+        if l.get("status") == "active"
+        and (l.get("stock") or 0) > 5
+        and (l.get("sales_count") or 0) < 5
+    )
+
     return {
         "orders_summary":    orders_summary,
         "records_summary":   records_summary,
@@ -263,6 +353,11 @@ async def get_finance_context(current_user=Depends(get_current_user)):
         "expense_breakdown": expense_breakdown,
         "monthly_cashflow":  monthly_cashflow,
         "period_months":     6,
+        # Zenginleştirilmiş alanlar (Gemini sistem promptu için)
+        "category_margins":  category_margins,
+        "order_health":      order_health,
+        "top_profitable":    top_profitable,
+        "slow_movers_count": slow_movers_count,
     }
 
 
@@ -395,8 +490,8 @@ def _detect_anomalies(records: list, listings: list) -> list:
     def by_month(lst):
         m: dict[str, float] = defaultdict(float)
         for r in lst:
-            ym = str(r.get("record_date") or "")[:7]
-            if ym:
+            ym = _record_ym(r)
+            if ym and len(ym) >= 7:
                 m[ym] += r["amount"] or 0
         return m
 
@@ -469,9 +564,10 @@ def _detect_anomalies(records: list, listings: list) -> list:
     if past_months:
         cat_monthly: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
         for r in expense:
-            ym  = str(r.get("record_date") or "")[:7]
+            ym  = _record_ym(r)
             cat = r.get("category") or "Diğer"
-            cat_monthly[cat][ym] += r["amount"] or 0
+            if ym and len(ym) >= 7:
+                cat_monthly[cat][ym] += r["amount"] or 0
 
         for cat, month_data in cat_monthly.items():
             past_vals  = [month_data.get(m, 0) for m in past_months[:-1]] if len(past_months) > 1 else []
@@ -566,6 +662,217 @@ def _detect_anomalies(records: list, listings: list) -> list:
     order = {"critical": 0, "medium": 1, "low": 2}
     alerts.sort(key=lambda a: order.get(a["severity"], 3))
     return alerts
+
+
+@router.get("/reports")
+async def get_reports(current_user=Depends(get_current_user)):
+    """
+    Raporlar sayfası — 4 bölüm:
+      1. Kârlılık Özeti   — aylık net kâr trendi + aylık büyüme oranı + kategori marjları
+      2. Gider Analizi    — kategori bazında aylık trend + reklam/gelir oranı trendi
+      3. Sipariş Sağlığı  — tamamlanma/iade/iptal oranları + aylık sipariş adedi
+      4. Ürün Performansı — en kârlı 5 ilan + yavaş dönen stoklar
+    """
+    user_id = current_user.id
+    records = _load_finance_records(user_id)
+    income  = [r for r in records if r["type"] == "income"]
+    expense = [r for r in records if r["type"] == "expense"]
+
+    def amt(lst): return sum(r["amount"] or 0 for r in lst)
+
+    # ── Aylık net kâr trendi (son 6 ay) ─────────────────────────────────────
+    monthly_inc: dict[str, float] = defaultdict(float)
+    monthly_exp: dict[str, float] = defaultdict(float)
+    for r in records:
+        ym = _record_ym(r)
+        if not ym or len(ym) < 7:
+            continue
+        if r["type"] == "income":
+            monthly_inc[ym] += r["amount"] or 0
+        else:
+            monthly_exp[ym] += r["amount"] or 0
+
+    all_months = sorted(set(list(monthly_inc) + list(monthly_exp)))[-6:]
+    monthly_net = []
+    for i, m in enumerate(all_months):
+        net     = monthly_inc.get(m, 0) - monthly_exp.get(m, 0)
+        inc     = monthly_inc.get(m, 0)
+        exp     = monthly_exp.get(m, 0)
+        prev    = monthly_inc.get(all_months[i-1], 0) - monthly_exp.get(all_months[i-1], 0) if i > 0 else None
+        mom_pct = round((net - prev) / abs(prev) * 100, 1) if prev and prev != 0 else None
+        monthly_net.append({
+            "month":    m,
+            "income":   round(inc, 2),
+            "expense":  round(exp, 2),
+            "net":      round(net, 2),
+            "mom_pct":  mom_pct,   # aylık büyüme %
+        })
+
+    # Son ay büyüme özeti
+    last_two = monthly_net[-2:] if len(monthly_net) >= 2 else []
+    overall_mom = last_two[-1]["mom_pct"] if last_two else None
+
+    # ── Kategori bazında kâr marjı ───────────────────────────────────────────
+    orders_res = supabase.table("orders") \
+        .select("listing_id, sale_price, quantity, cogs, net_revenue, status") \
+        .eq("seller_id", user_id) \
+        .in_("status", ["delivered", "shipped"]).execute()
+    orders_data = orders_res.data or []
+
+    listings_res = supabase.table("listings") \
+        .select("id, title, category, cost_price, stock, sales_count") \
+        .eq("user_id", user_id).execute()
+    listing_map = {l["id"]: l for l in (listings_res.data or [])}
+
+    cat_revenue: dict[str, float] = defaultdict(float)
+    cat_cogs:    dict[str, float] = defaultdict(float)
+    cat_orders:  dict[str, int]   = defaultdict(int)
+    for o in orders_data:
+        lid = o["listing_id"]
+        cat = listing_map.get(lid, {}).get("category", "Diğer") or "Diğer"
+        rev = (o["sale_price"] or 0) * (o["quantity"] or 1)
+        cat_revenue[cat] += rev
+        cat_cogs[cat]    += o["cogs"] or 0
+        cat_orders[cat]  += 1
+
+    category_margins = sorted([
+        {
+            "category": cat,
+            "revenue":  round(cat_revenue[cat], 2),
+            "cogs":     round(cat_cogs[cat], 2),
+            "orders":   cat_orders[cat],
+            "margin":   round((cat_revenue[cat] - cat_cogs[cat]) / cat_revenue[cat] * 100, 1)
+                        if cat_revenue[cat] > 0 else 0,
+        }
+        for cat in cat_revenue
+    ], key=lambda x: -x["revenue"])[:8]
+
+    # ── Gider Analizi — top 4 kategori aylık trend ───────────────────────────
+    top_exp_cats = [
+        c["category"] for c in sorted(
+            [{"category": k, "total": sum(r["amount"] or 0 for r in expense if (r.get("category") or "") == k)}
+             for k in set(r.get("category") or "Diğer" for r in expense)],
+            key=lambda x: -x["total"]
+        )[:4]
+    ]
+    cat_trend = {cat: [] for cat in top_exp_cats}
+    for m in all_months:
+        for cat in top_exp_cats:
+            val = sum(
+                r["amount"] or 0 for r in expense
+                if (r.get("category") or "Diğer") == cat and _record_ym(r) == m
+            )
+            cat_trend[cat].append({"month": m, "amount": round(val, 2)})
+
+    expense_category_trend = [
+        {"category": cat, "monthly": cat_trend[cat]}
+        for cat in top_exp_cats
+    ]
+
+    # Reklam/Gelir oranı aylık trend
+    order_income_by_month = defaultdict(float)
+    ad_exp_by_month = defaultdict(float)
+    for r in income:
+        if r.get("source") == "order_income":
+            ym = _record_ym(r)
+            if ym and len(ym) >= 7:
+                order_income_by_month[ym] += r["amount"] or 0
+    for r in expense:
+        if "Reklam" in (r.get("category") or ""):
+            ym = _record_ym(r)
+            if ym and len(ym) >= 7:
+                ad_exp_by_month[ym] += r["amount"] or 0
+
+    ad_ratio_trend = [
+        {
+            "month":    m,
+            "ad_exp":   round(ad_exp_by_month.get(m, 0), 2),
+            "income":   round(order_income_by_month.get(m, 0), 2),
+            "ratio_pct": round(
+                ad_exp_by_month.get(m, 0) / order_income_by_month.get(m, 1) * 100, 1
+            ) if order_income_by_month.get(m, 0) > 0 else 0,
+        }
+        for m in all_months
+    ]
+
+    # ── Sipariş Sağlığı ──────────────────────────────────────────────────────
+    all_orders_res = supabase.table("orders") \
+        .select("status, sale_price, quantity, net_revenue") \
+        .eq("seller_id", user_id).execute()
+    all_orders = all_orders_res.data or []
+
+    total_orders     = len(all_orders)
+    delivered        = sum(1 for o in all_orders if o["status"] == "delivered")
+    shipped          = sum(1 for o in all_orders if o["status"] == "shipped")
+    cancelled        = sum(1 for o in all_orders if o["status"] == "cancelled")
+    refunded         = sum(1 for o in all_orders if o["status"] == "refunded")
+    processing       = sum(1 for o in all_orders if o["status"] == "processing")
+    completed        = delivered + shipped
+    total_revenue_orders = sum((o["sale_price"] or 0) * (o["quantity"] or 1) for o in all_orders if o["status"] in ("delivered", "shipped"))
+
+    order_health = {
+        "total_orders":       total_orders,
+        "completed":          completed,
+        "completion_rate":    round(completed / total_orders * 100, 1) if total_orders else 0,
+        "cancelled":          cancelled,
+        "refunded":           refunded,
+        "refund_cancel_rate": round((cancelled + refunded) / total_orders * 100, 1) if total_orders else 0,
+        "processing":         processing,
+        "avg_basket":         round(total_revenue_orders / completed, 2) if completed else 0,
+    }
+
+    # ── Ürün Performansı ─────────────────────────────────────────────────────
+    lperf: dict[str, dict] = defaultdict(lambda: {
+        "net_revenue": 0.0, "orders": 0, "title": "", "category": "", "cogs": 0.0
+    })
+    for o in orders_data:
+        lid = o["listing_id"]
+        lperf[lid]["net_revenue"] += o["net_revenue"] or 0
+        lperf[lid]["orders"]      += 1
+        lperf[lid]["cogs"]        += o["cogs"] or 0
+        lperf[lid]["title"]        = listing_map.get(lid, {}).get("title", "—")
+        lperf[lid]["category"]     = listing_map.get(lid, {}).get("category", "—")
+
+    top_profitable = sorted(
+        [{"listing_id": k, **v,
+          "net_revenue": round(v["net_revenue"], 2),
+          "profit_per_order": round(v["net_revenue"] / v["orders"], 2) if v["orders"] else 0}
+         for k, v in lperf.items()],
+        key=lambda x: -x["net_revenue"]
+    )[:5]
+
+    # Yavaş dönen stoklar: aktif, stok > 5, satış < 5
+    slow_movers = sorted([
+        {
+            "listing_id": l["id"],
+            "title":      l["title"],
+            "category":   l.get("category", "—"),
+            "stock":      l.get("stock", 0),
+            "sales_count": l.get("sales_count", 0),
+        }
+        for l in (listings_res.data or [])
+        if l.get("status") == "active"
+        and (l.get("stock") or 0) > 5
+        and (l.get("sales_count") or 0) < 5
+    ], key=lambda x: -x["stock"])[:5]
+
+    return {
+        "profitability": {
+            "monthly_net":     monthly_net,
+            "overall_mom_pct": overall_mom,
+            "category_margins": category_margins,
+        },
+        "expense_analysis": {
+            "category_trend":  expense_category_trend,
+            "ad_ratio_trend":  ad_ratio_trend,
+            "top_expense_cats": top_exp_cats,
+        },
+        "order_health": order_health,
+        "product_performance": {
+            "top_profitable": top_profitable,
+            "slow_movers":    slow_movers,
+        },
+    }
 
 
 class AlertChatRequest(BaseModel):

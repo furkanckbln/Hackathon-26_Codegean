@@ -42,6 +42,8 @@ function KpiCard({ icon, label, value, sub, color = 'blue' }) {
 }
 
 // ── Aylık Gelir Grafik (CSS Bar Chart) ──────────────────────────────────────
+const BAR_MAX_PX = 128  // bar alanı sabit yükseklik (px)
+
 function MonthlyChart({ data }) {
   if (!data?.length) return null
   const maxVal = Math.max(...data.map(d => Math.max(d.income || 0, d.expense || 0)), 1)
@@ -49,28 +51,35 @@ function MonthlyChart({ data }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 p-6">
       <h3 className="text-sm font-semibold text-gray-700 mb-4">📈 Aylık Gelir / Gider</h3>
-      <div className="flex items-end gap-3 h-40">
+      <div className="flex items-end gap-2" style={{ height: `${BAR_MAX_PX + 20}px` }}>
         {data.map((d) => {
-          const incPct = Math.max(((d.income || 0) / maxVal) * 100, 2)
-          const expPct = Math.max(((d.expense || 0) / maxVal) * 100, 2)
+          const incH = Math.max(((d.income  || 0) / maxVal) * BAR_MAX_PX, 3)
+          const expH = Math.max(((d.expense || 0) / maxVal) * BAR_MAX_PX, 3)
           return (
-            <div key={d.month} className="flex-1 flex flex-col items-center gap-1 group">
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-gray-800 text-white rounded px-2 py-1 whitespace-nowrap text-center">
+            <div key={d.month} className="flex-1 flex flex-col items-center justify-end gap-1 group">
+              {/* Tooltip */}
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-gray-800 text-white rounded px-2 py-1 whitespace-nowrap text-center mb-1">
                 <div>Gelir: ₺{fmtK(d.income)}</div>
                 <div>Gider: ₺{fmtK(d.expense)}</div>
               </div>
-              <div className="w-full flex items-end gap-0.5" style={{ height: '100%' }}>
-                <div className="flex-1 bg-green-400 hover:bg-green-500 transition-colors rounded-t"
-                  style={{ height: `${incPct}%` }} />
-                <div className="flex-1 bg-red-300 hover:bg-red-400 transition-colors rounded-t"
-                  style={{ height: `${expPct}%` }} />
+              {/* Barlar */}
+              <div className="w-full flex items-end gap-0.5">
+                <div
+                  className="flex-1 bg-green-400 hover:bg-green-500 transition-colors rounded-t"
+                  style={{ height: `${incH}px` }}
+                />
+                <div
+                  className="flex-1 bg-red-300 hover:bg-red-400 transition-colors rounded-t"
+                  style={{ height: `${expH}px` }}
+                />
               </div>
-              <span className="text-[10px] text-gray-400">{monthLabel(d.month)}</span>
+              {/* Ay etiketi */}
+              <span className="text-[10px] text-gray-400 mt-1">{monthLabel(d.month)}</span>
             </div>
           )
         })}
       </div>
-      <div className="flex gap-4 mt-2">
+      <div className="flex gap-4 mt-3">
         <span className="flex items-center gap-1 text-xs text-gray-400">
           <span className="w-2.5 h-2.5 rounded-sm bg-green-400 inline-block" /> Gelir
         </span>

@@ -30,7 +30,7 @@ export default function RegisterPage() {
 
     setLoading(true)
     try {
-      await register(email, password, storeName)
+      await register(email, password, storeName, 'seller')
       setSuccess('Kayıt başarılı! E-postanı doğruladıktan sonra giriş yapabilirsin.')
     } catch (err) {
       setError(err.message || 'Kayıt başarısız.')

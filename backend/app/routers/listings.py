@@ -117,6 +117,8 @@ async def create_listing(
             "seo_tags":        [t.strip() for t in body.seo_tags.split(",")],
             "category":        body.category,
             "price":           body.price,
+            "cost_price":      body.cost_price or 0.0,
+            "cargo_price":     body.cargo_price if body.cargo_price is not None else 29.90,
             "stock":           body.stock,
             "status":          "active",
             "clean_image_url": body.clean_image_url,
@@ -143,14 +145,13 @@ async def get_my_listings(current_user=Depends(get_current_user)):
 @router.get("/all")
 async def get_all_listings(
     category: str = None,
-    current_user=Depends(get_current_user),
 ):
     """
     Tüm satıcıların aktif ilanlarını döndür.
-    Rakip analizi menüsü için kullanılır.
+    Rakip analizi + müşteri vitrini için — auth gerektirmez (public data).
     """
     query = supabase.table("listings")\
-        .select("id, title, category, price, stock, clean_image_url, sales_count, rating, created_at")\
+        .select("id, title, category, price, cargo_price, stock, clean_image_url, sales_count, rating, created_at")\
         .eq("status", "active")
 
     if category:
@@ -188,7 +189,7 @@ async def update_listing(
 ):
     """İlan içeriğini (başlık, açıklama, fiyat vb.) güncelle."""
     allowed = {"title", "short_desc", "long_desc", "features", "seo_tags",
-               "category", "price", "cost_price", "stock", "status"}
+               "category", "price", "cost_price", "cargo_price", "stock", "status"}
     update_data = {k: v for k, v in body.items() if k in allowed}
 
     # features ve seo_tags liste olarak saklanıyor

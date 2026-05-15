@@ -429,7 +429,7 @@ export default function StorePage() {
                         </div>
                       </div>
                       <button
-                        onClick={async () => { await logout(); navigate('/store') }}
+                        onClick={async () => { await logout(); window.location.href = '/store' }}
                         className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
                       >
                         Çıkış Yap

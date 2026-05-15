@@ -1,9 +1,8 @@
 /**
- * StoreProductPage — Müşteri Ürün Detay + Satın Al (Public)
+ * StoreProductPage — Müşteri Ürün Detay (Public)
  *
- * Auth gerektirmez.
- * POST /orders ile sipariş oluşturur.
- * Sipariş başarılıysa Supabase trigger stoku otomatik düşürür.
+ * Ürünü gösterir, sepete ekleme sağlar.
+ * Sipariş yalnızca sepet üzerinden verilebilir.
  */
 
 import { useEffect, useState } from 'react'
@@ -29,63 +28,15 @@ function StarRating({ rating }) {
   )
 }
 
-// ── Sipariş Başarı Ekranı ─────────────────────────────────────────────────────
-function OrderSuccess({ order, onClose }) {
-  return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-sm w-full text-center animate-fade-in">
-        <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center text-3xl mx-auto mb-4">
-          ✅
-        </div>
-        <h2 className="text-xl font-bold text-gray-800 mb-1">Siparişiniz Alındı!</h2>
-        <p className="text-sm text-gray-500 mb-5">{order.message}</p>
-
-        <div className="bg-gray-50 rounded-xl p-4 text-left text-sm space-y-2 mb-6">
-          <div className="flex justify-between">
-            <span className="text-gray-400">Sipariş No</span>
-            <span className="font-mono text-gray-700 text-xs truncate max-w-[160px]">{order.order_id}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Ürün</span>
-            <span className="text-gray-700 text-right max-w-[160px] line-clamp-1">{order.title}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Adet</span>
-            <span className="text-gray-700">{order.quantity}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Kargo</span>
-            <span className="text-gray-700">{fmt(order.cargo_price)} ₺</span>
-          </div>
-          <div className="flex justify-between font-semibold border-t border-gray-200 pt-2 mt-2">
-            <span className="text-gray-700">Toplam</span>
-            <span className="text-orange-600 text-base">{fmt(order.total)} ₺</span>
-          </div>
-        </div>
-
-        <button
-          onClick={onClose}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors"
-        >
-          Alışverişe Devam Et
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ── Ana Sayfa ─────────────────────────────────────────────────────────────────
 export default function StoreProductPage() {
   const { id }   = useParams()
   const navigate = useNavigate()
   const { addItem, totalItems } = useCart()
 
-  const [listing,   setListing]   = useState(null)
-  const [loading,   setLoading]   = useState(true)
-  const [quantity,  setQuantity]  = useState(1)
-  const [ordering,  setOrdering]  = useState(false)
-  const [orderErr,  setOrderErr]  = useState('')
-  const [orderOk,   setOrderOk]   = useState(null)   // başarılı sipariş datası
+  const [listing,     setListing]     = useState(null)
+  const [loading,     setLoading]     = useState(true)
+  const [quantity,    setQuantity]    = useState(1)
   const [addedToCart, setAddedToCart] = useState(false)
 
   useEffect(() => {
@@ -100,28 +51,6 @@ export default function StoreProductPage() {
     addItem(listing, quantity)
     setAddedToCart(true)
     setTimeout(() => setAddedToCart(false), 2000)
-  }
-
-  const handleOrder = async () => {
-    if (ordering) return
-    setOrderErr('')
-    setOrdering(true)
-    try {
-      const res = await api.post('/orders/', {
-        listing_id: id,
-        quantity,
-      })
-      // Stok güncel göstermek için listing'i güncelle
-      setListing(prev => ({
-        ...prev,
-        stock: Math.max((prev.stock ?? 0) - quantity, 0),
-      }))
-      setOrderOk(res.data)
-    } catch (e) {
-      setOrderErr(e?.response?.data?.detail || 'Sipariş oluşturulamadı, tekrar dene.')
-    } finally {
-      setOrdering(false)
-    }
   }
 
   const featureList = listing?.features
@@ -165,14 +94,6 @@ export default function StoreProductPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-
-      {/* Başarı Modal */}
-      {orderOk && (
-        <OrderSuccess
-          order={orderOk}
-          onClose={() => { setOrderOk(null); navigate('/store') }}
-        />
-      )}
 
       {/* ── Navbar ────────────────────────────────────────────────────────── */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-20 shadow-sm">
@@ -329,7 +250,7 @@ export default function StoreProductPage() {
                 </div>
               )}
 
-              {/* Toplam + Butonlar */}
+              {/* Toplam + Sepete Ekle */}
               {inStock && (
                 <div className="border-t border-gray-100 pt-3">
                   <div className="flex justify-between text-sm text-gray-600 mb-3">
@@ -339,36 +260,15 @@ export default function StoreProductPage() {
                     </span>
                     <span className="font-bold text-gray-800">{fmt(total)} ₺</span>
                   </div>
-
-                  {orderErr && (
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-3 text-sm text-red-600">
-                      ⚠️ {orderErr}
-                    </div>
-                  )}
-
-                  <div className="flex gap-3">
-                    {/* Sepete Ekle */}
-                    <button
-                      onClick={handleAddToCart}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all border-2
-                        ${addedToCart
-                          ? 'border-green-500 bg-green-50 text-green-600'
-                          : 'border-orange-500 bg-white text-orange-600 hover:bg-orange-50'}`}
-                    >
-                      {addedToCart ? '✓ Sepete Eklendi' : '🛒 Sepete Ekle'}
-                    </button>
-                    {/* Hemen Satın Al */}
-                    <button
-                      onClick={handleOrder}
-                      disabled={ordering}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all
-                        ${ordering
-                          ? 'bg-orange-300 text-white cursor-wait'
-                          : 'bg-orange-500 hover:bg-orange-600 text-white shadow-sm hover:shadow-md'}`}
-                    >
-                      {ordering ? '⏳ İşleniyor…' : '⚡ Hemen Al'}
-                    </button>
-                  </div>
+                  <button
+                    onClick={handleAddToCart}
+                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all border-2
+                      ${addedToCart
+                        ? 'border-green-500 bg-green-50 text-green-600'
+                        : 'border-orange-500 bg-orange-500 hover:bg-orange-600 text-white shadow-sm hover:shadow-md'}`}
+                  >
+                    {addedToCart ? '✓ Sepete Eklendi' : '🛒 Sepete Ekle'}
+                  </button>
                 </div>
               )}
 

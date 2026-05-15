@@ -29,7 +29,7 @@ export default function Layout({ children }) {
 
   const handleLogout = async () => {
     await logout()
-    navigate('/login')
+    window.location.href = '/store'   // tam sayfa yenile → React state (sepet vb.) sıfırlanır
   }
 
   return (
@@ -131,6 +131,16 @@ export default function Layout({ children }) {
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
+            </button>
+
+            {/* Mağazaya Git */}
+            <button
+              onClick={() => navigate('/store')}
+              className="flex items-center gap-1.5 bg-orange-50 hover:bg-orange-100 text-orange-600 border border-orange-200 px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+              title="Müşteri mağazasına git"
+            >
+              <span>🛒</span>
+              <span>Mağazaya Git</span>
             </button>
 
             {/* Mağaza adı */}

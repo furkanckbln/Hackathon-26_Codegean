@@ -63,7 +63,7 @@ function CustomerGuestRoute({ children }) {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/"            element={<Navigate to="/login" replace />} />
+      <Route path="/"            element={<Navigate to="/store" replace />} />
       <Route path="/login"       element={<GuestRoute><LoginPage /></GuestRoute>} />
       <Route path="/register"    element={<GuestRoute><RegisterPage /></GuestRoute>} />
       {/* ── Satıcı Paneli (SellerRoute) ─────────────────────────────────── */}

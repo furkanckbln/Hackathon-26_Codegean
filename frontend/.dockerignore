@@ -1,0 +1,18 @@
+# Dependencies (must be built inside the container for Linux)
+node_modules/
+
+# Build output (generated inside the container)
+dist/
+
+# Secrets
+.env
+.env.*
+.env.local
+.env.production
+
+# IDE
+.idea/
+.vscode/
+
+# Docs
+*.md

@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+
+# rembg model cache (managed via volume)
+.u2net/
+u2net/
+
+# YOLO weights
+*.pt
+runs/
+
+# Tests
+tests/
+*.test.py

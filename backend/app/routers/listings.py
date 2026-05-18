@@ -119,6 +119,8 @@ async def create_listing(
             "price":           body.price,
             "cost_price":      body.cost_price or 0.0,
             "cargo_price":     body.cargo_price if body.cargo_price is not None else 29.90,
+            "tax_rate":        body.tax_rate  if body.tax_rate  is not None else 20.0,
+            "tax_amount":      round(body.price * ((body.tax_rate or 20.0) / 100), 2),
             "stock":           body.stock,
             "status":          "active",
             "clean_image_url": body.clean_image_url,
@@ -189,7 +191,8 @@ async def update_listing(
 ):
     """İlan içeriğini (başlık, açıklama, fiyat vb.) güncelle."""
     allowed = {"title", "short_desc", "long_desc", "features", "seo_tags",
-               "category", "price", "cost_price", "cargo_price", "stock", "status"}
+               "category", "price", "cost_price", "cargo_price",
+               "tax_rate", "tax_amount", "stock", "status"}
     update_data = {k: v for k, v in body.items() if k in allowed}
 
     # features ve seo_tags liste olarak saklanıyor

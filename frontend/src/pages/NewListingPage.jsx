@@ -69,6 +69,7 @@ const EMPTY_FORM = {
   price:       '',
   costPrice:   '',
   cargoPrice:  '29.90',
+  taxRate:     '20',
   stock:       '',
   variant:     '',
   shippingDay: '',
@@ -257,6 +258,8 @@ export default function NewListingPage() {
         price:           parseFloat(form.price)      || 0,
         cost_price:      parseFloat(form.costPrice)  || 0,
         cargo_price:     parseFloat(form.cargoPrice) ?? 29.90,
+        tax_rate:        parseFloat(form.taxRate)    || 20,
+        tax_amount:      Math.round((parseFloat(form.price) || 0) * ((parseFloat(form.taxRate) || 20) / 100) * 100) / 100,
         stock:           parseInt(form.stock)        || 0,
         clean_image_url: cleanImage,
       })
@@ -452,6 +455,43 @@ export default function NewListingPage() {
                           : parseFloat(form.cargoPrice) === 0
                           ? 'Ücretsiz kargo — satıcı karşılar, gider kaydı tutulmaz'
                           : `Müşteri ${parseFloat(form.cargoPrice).toFixed(2)} ₺ kargo öder`}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* KDV */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      KDV Oranı (%)
+                    </label>
+                    <select
+                      value={form.taxRate}
+                      onChange={e => updateForm('taxRate', e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="0">%0 — KDV'siz</option>
+                      <option value="1">%1 — İndirimli (temel gıda)</option>
+                      <option value="10">%10 — İndirimli</option>
+                      <option value="20">%20 — Genel oran</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      KDV Tutarı (₺)
+                      <span className="text-gray-400 font-normal ml-1">— otomatik hesaplanır</span>
+                    </label>
+                    <div className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-700 font-semibold">
+                      {form.price && parseFloat(form.price) > 0
+                        ? `${(parseFloat(form.price) * (parseFloat(form.taxRate) || 0) / 100).toFixed(2)} ₺`
+                        : <span className="text-gray-400 font-normal">Fiyat girilince hesaplanır</span>
+                      }
+                    </div>
+                    {form.price && parseFloat(form.price) > 0 && parseFloat(form.taxRate) > 0 && (
+                      <p className="mt-1 text-[11px] text-gray-400">
+                        KDV dahil toplam: <span className="font-semibold text-gray-600">
+                          {(parseFloat(form.price)).toFixed(2)} ₺
+                        </span>
+                        <span className="ml-1">(KDV hariç: {(parseFloat(form.price) / (1 + parseFloat(form.taxRate) / 100)).toFixed(2)} ₺)</span>
                       </p>
                     )}
                   </div>

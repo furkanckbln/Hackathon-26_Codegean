@@ -47,6 +47,8 @@ class CreateListingRequest(BaseModel):
     price:           float
     cost_price:      Optional[float] = 0.0
     cargo_price:     Optional[float] = 29.90   # >0 müşteri öder | <0 satıcı öder | 0 ücretsiz
+    tax_rate:        Optional[float] = 20.0    # KDV oranı (%)
+    tax_amount:      Optional[float] = 0.0    # Hesaplanan KDV tutarı (₺)
     stock:           int
     variant:         Optional[str] = ""
     shipping_day:    Optional[str] = ""

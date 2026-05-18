@@ -13,7 +13,8 @@ import { useCart } from '../context/CartContext'
 const fmt = (n) =>
   Number(n).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-function StarRating({ rating }) {
+/** Tam/yarım yıldız gösterimi */
+function StarRating({ rating, count }) {
   if (!rating) return <span className="text-sm text-gray-400">Değerlendirme yok</span>
   const full  = Math.floor(rating)
   const half  = rating - full >= 0.5
@@ -24,7 +25,21 @@ function StarRating({ rating }) {
         {'★'.repeat(full)}{half ? '½' : ''}{'☆'.repeat(empty)}
       </span>
       <span className="text-sm text-gray-500">{rating} / 5</span>
+      {count != null && (
+        <span className="text-xs text-gray-400">({count} değerlendirme)</span>
+      )}
     </div>
+  )
+}
+
+/** Küçük readonly yıldız */
+function StarDisplay({ value }) {
+  return (
+    <span>
+      {[1,2,3,4,5].map(s => (
+        <span key={s} className={value >= s ? 'text-yellow-400' : 'text-gray-200'}>★</span>
+      ))}
+    </span>
   )
 }
 
@@ -38,12 +53,22 @@ export default function StoreProductPage() {
   const [loading,     setLoading]     = useState(true)
   const [quantity,    setQuantity]    = useState(1)
   const [addedToCart, setAddedToCart] = useState(false)
+  const [reviews,     setReviews]     = useState([])
+  const [reviewsLoading, setReviewsLoading] = useState(true)
 
   useEffect(() => {
     api.get(`/listings/${id}`)
       .then(r => setListing(r.data))
       .catch(() => {})
       .finally(() => setLoading(false))
+  }, [id])
+
+  useEffect(() => {
+    if (!id) return
+    api.get(`/reviews/listing/${id}`)
+      .then(r => setReviews(r.data || []))
+      .catch(() => setReviews([]))
+      .finally(() => setReviewsLoading(false))
   }, [id])
 
   const handleAddToCart = () => {
@@ -65,11 +90,11 @@ export default function StoreProductPage() {
       : listing.seo_tags.split(',').map(t => t.trim()).filter(Boolean)
     : []
 
-  const inStock      = (listing?.stock ?? 0) > 0
-  const maxQty       = Math.min(listing?.stock ?? 0, 10)
-  const cargoPrice   = listing?.cargo_price ?? 29.90          // listing'den oku
-  const customerCargo = cargoPrice > 0 ? cargoPrice : 0      // müşteri öder mi?
-  const total        = ((listing?.price ?? 0) * quantity + customerCargo).toFixed(2)
+  const inStock       = (listing?.stock ?? 0) > 0
+  const maxQty        = Math.min(listing?.stock ?? 0, 10)
+  const cargoPrice    = listing?.cargo_price ?? 29.90
+  const customerCargo = cargoPrice > 0 ? cargoPrice : 0
+  const total         = ((listing?.price ?? 0) * quantity + customerCargo).toFixed(2)
 
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (loading) return (
@@ -176,8 +201,8 @@ export default function StoreProductPage() {
               )}
               <h1 className="text-xl font-bold text-gray-900 leading-snug">{listing.title}</h1>
 
-              {/* Puan */}
-              <StarRating rating={listing.rating} />
+              {/* Puan + yorum sayısı */}
+              <StarRating rating={listing.rating} count={reviewsLoading ? null : reviews.length} />
 
               {/* Kısa açıklama */}
               {listing.short_desc && (
@@ -286,6 +311,9 @@ export default function StoreProductPage() {
           <DetailTabs listing={listing} featureList={featureList} seoList={seoList} />
         )}
 
+        {/* ── Müşteri Yorumları ──────────────────────────────────────────────── */}
+        <ReviewsSection reviews={reviews} loading={reviewsLoading} />
+
         {/* Geri */}
         <div className="mt-4 pb-6">
           <button
@@ -295,6 +323,79 @@ export default function StoreProductPage() {
             ← Mağazaya dön
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Müşteri Yorumları Bölümü ──────────────────────────────────────────────────
+function ReviewsSection({ reviews, loading }) {
+  return (
+    <div className="mt-4 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* Başlık */}
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-800">
+          Müşteri Yorumları
+          {!loading && reviews.length > 0 && (
+            <span className="ml-2 text-xs font-normal text-gray-400">
+              ({reviews.length} yorum)
+            </span>
+          )}
+        </h2>
+        {!loading && reviews.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-yellow-400 text-sm">
+              {'★'.repeat(Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length))}
+            </span>
+            <span className="text-xs text-gray-500 font-medium">
+              {(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)} ort.
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* İçerik */}
+      <div className="p-6">
+        {loading && (
+          <div className="flex items-center gap-2 text-gray-400 text-sm">
+            <div className="w-4 h-4 border-2 border-gray-200 border-t-orange-400 rounded-full animate-spin" />
+            Yorumlar yükleniyor…
+          </div>
+        )}
+
+        {!loading && reviews.length === 0 && (
+          <div className="text-center py-6">
+            <div className="text-3xl mb-2 opacity-20">💬</div>
+            <p className="text-sm text-gray-400">Henüz yorum yapılmamış. İlk yorumu sen yap!</p>
+          </div>
+        )}
+
+        {!loading && reviews.length > 0 && (
+          <div className="space-y-5">
+            {reviews.map((r) => (
+              <div key={r.id} className="flex gap-3">
+                {/* Avatar */}
+                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-orange-500 text-xs font-bold">M</span>
+                </div>
+                {/* İçerik */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <StarDisplay value={r.rating} />
+                    <span className="text-[11px] text-gray-400">
+                      {new Date(r.created_at).toLocaleDateString('tr-TR')}
+                    </span>
+                  </div>
+                  {r.comment ? (
+                    <p className="text-sm text-gray-700 leading-relaxed">{r.comment}</p>
+                  ) : (
+                    <p className="text-xs text-gray-400 italic">Yorum yazılmamış.</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

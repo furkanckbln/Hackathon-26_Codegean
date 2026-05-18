@@ -93,7 +93,7 @@ function OrderCard({ order }) {
     setSubmitErr('')
     setSubmitting(true)
     try {
-      await api.post('/reviews', {
+      await api.post('/reviews/', {
         order_id: order.id,
         rating,
         comment: comment.trim() || null,

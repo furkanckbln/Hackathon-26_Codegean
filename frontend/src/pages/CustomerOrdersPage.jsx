@@ -27,6 +27,207 @@ function StatusBadge({ status }) {
   )
 }
 
+/** Yıldız seçici */
+function StarPicker({ value, onChange }) {
+  const [hovered, setHovered] = useState(0)
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map(star => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => onChange(star)}
+          onMouseEnter={() => setHovered(star)}
+          onMouseLeave={() => setHovered(0)}
+          className="text-2xl leading-none focus:outline-none transition-transform hover:scale-110"
+        >
+          <span className={(hovered || value) >= star ? 'text-yellow-400' : 'text-gray-200'}>
+            ★
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/** Readonly yıldız gösterimi */
+function StarDisplay({ value }) {
+  return (
+    <span className="text-base">
+      {[1, 2, 3, 4, 5].map(s => (
+        <span key={s} className={value >= s ? 'text-yellow-400' : 'text-gray-200'}>★</span>
+      ))}
+    </span>
+  )
+}
+
+/** Tek sipariş kartı */
+function OrderCard({ order }) {
+  const listing    = order.listings || {}
+  const cargoLabel = (order.cargo_price ?? 0) > 0
+    ? `${fmt(order.cargo_price)} ₺ kargo`
+    : 'Ücretsiz kargo'
+  const total = (order.sale_price * order.quantity) +
+                (order.cargo_price > 0 ? order.cargo_price : 0)
+
+  const isDelivered = order.status === 'delivered'
+
+  const [review,       setReview]       = useState(undefined)
+  const [reviewLoaded, setReviewLoaded] = useState(false)
+  const [formOpen,     setFormOpen]     = useState(false)
+  const [rating,       setRating]       = useState(0)
+  const [comment,      setComment]      = useState('')
+  const [submitting,   setSubmitting]   = useState(false)
+  const [submitErr,    setSubmitErr]    = useState('')
+
+  // Teslim edilmiş siparişler için mevcut yorumu çek
+  useEffect(() => {
+    if (!isDelivered) return
+    api.get(`/reviews/order/${order.id}`)
+      .then(r => { setReview(r.data); setReviewLoaded(true) })
+      .catch(() => { setReview(null); setReviewLoaded(true) })
+  }, [order.id, isDelivered])
+
+  const handleSubmit = async () => {
+    if (rating === 0) { setSubmitErr('Lütfen bir puan seç.'); return }
+    setSubmitErr('')
+    setSubmitting(true)
+    try {
+      await api.post('/reviews', {
+        order_id: order.id,
+        rating,
+        comment: comment.trim() || null,
+      })
+      setReview({ rating, comment: comment.trim(), created_at: new Date().toISOString() })
+      setFormOpen(false)
+    } catch (e) {
+      setSubmitErr(e?.response?.data?.detail || 'Yorum kaydedilemedi.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* Sipariş özeti */}
+      <div className="p-4 flex gap-4">
+        <div
+          className="w-20 h-20 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-100"
+          style={{
+            backgroundImage: 'radial-gradient(#e5e7eb 1px, transparent 1px)',
+            backgroundSize: '12px 12px',
+          }}
+        >
+          {listing.clean_image_url ? (
+            <img
+              src={listing.clean_image_url}
+              alt={listing.title}
+              className="w-full h-full object-contain p-1"
+            />
+          ) : (
+            <span className="text-3xl opacity-20">🛍️</span>
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <p className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug">
+              {listing.title || 'Ürün bilgisi yüklenemedi'}
+            </p>
+            <StatusBadge status={order.status} />
+          </div>
+
+          {listing.category && (
+            <p className="text-xs text-orange-500 font-medium mb-1">{listing.category}</p>
+          )}
+
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mt-1">
+            <span>{order.quantity} adet × {fmt(order.sale_price)} ₺</span>
+            <span>{cargoLabel}</span>
+            <span className="font-semibold text-gray-700">Toplam: {fmt(total)} ₺</span>
+          </div>
+
+          <p className="text-[11px] text-gray-400 mt-2">
+            Sipariş tarihi: {new Date(order.order_date || order.created_at).toLocaleDateString('tr-TR')}
+            <span className="ml-3 font-mono text-[10px]">#{order.id.slice(0, 8).toUpperCase()}</span>
+          </p>
+        </div>
+      </div>
+
+      {/* ── Yorum bölgesi (yalnızca teslim edilmiş) ──────────────────────── */}
+      {isDelivered && reviewLoaded && (
+        <div className="border-t border-gray-100 bg-gray-50/50 px-4 py-3">
+
+          {review ? (
+            /* Mevcut yorum */
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <StarDisplay value={review.rating} />
+                <span className="text-[11px] text-gray-400">
+                  {new Date(review.created_at).toLocaleDateString('tr-TR')} tarihinde yorumlandı
+                </span>
+              </div>
+              {review.comment && (
+                <p className="text-sm text-gray-600 leading-relaxed mt-0.5">{review.comment}</p>
+              )}
+            </div>
+          ) : !formOpen ? (
+            /* Yorum yapılmamış → buton */
+            <button
+              onClick={() => setFormOpen(true)}
+              className="text-xs font-medium text-orange-500 hover:text-orange-600 transition-colors flex items-center gap-1"
+            >
+              <span className="text-base leading-none">★</span> Puan ver &amp; yorum yap
+            </button>
+          ) : (
+            /* Yorum formu */
+            <div className="flex flex-col gap-3">
+              <div>
+                <p className="text-xs text-gray-500 mb-1.5 font-medium">Puanın:</p>
+                <StarPicker value={rating} onChange={setRating} />
+              </div>
+
+              <textarea
+                value={comment}
+                onChange={e => setComment(e.target.value)}
+                placeholder="Ürün hakkında bir şeyler yaz… (opsiyonel)"
+                rows={3}
+                maxLength={1000}
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-300 resize-none bg-white"
+              />
+
+              {submitErr && (
+                <p className="text-xs text-red-500">{submitErr}</p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setFormOpen(false)
+                    setRating(0)
+                    setComment('')
+                    setSubmitErr('')
+                  }}
+                  className="flex-1 text-sm text-gray-500 border border-gray-200 rounded-xl py-2 hover:bg-gray-100 transition-colors bg-white"
+                >
+                  İptal
+                </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="flex-1 text-sm font-semibold bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300 text-white rounded-xl py-2 transition-colors"
+                >
+                  {submitting ? '⏳ Kaydediliyor…' : 'Gönder'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CustomerOrdersPage() {
   const navigate = useNavigate()
   const [orders,  setOrders]  = useState([])
@@ -102,65 +303,9 @@ export default function CustomerOrdersPage() {
 
         {!loading && orders.length > 0 && (
           <div className="space-y-4">
-            {orders.map(order => {
-              const listing    = order.listings || {}
-              const cargoLabel = (order.cargo_price ?? 0) > 0
-                ? `${fmt(order.cargo_price)} ₺ kargo`
-                : 'Ücretsiz kargo'
-              const total = (order.sale_price * order.quantity) +
-                            (order.cargo_price > 0 ? order.cargo_price : 0)
-
-              return (
-                <div
-                  key={order.id}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex gap-4"
-                >
-                  {/* Ürün görseli */}
-                  <div
-                    className="w-20 h-20 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden border border-gray-100"
-                    style={{
-                      backgroundImage: 'radial-gradient(#e5e7eb 1px, transparent 1px)',
-                      backgroundSize: '12px 12px',
-                    }}
-                  >
-                    {listing.clean_image_url ? (
-                      <img
-                        src={listing.clean_image_url}
-                        alt={listing.title}
-                        className="w-full h-full object-contain p-1"
-                      />
-                    ) : (
-                      <span className="text-3xl opacity-20">🛍️</span>
-                    )}
-                  </div>
-
-                  {/* Sipariş bilgisi */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <p className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug">
-                        {listing.title || 'Ürün bilgisi yüklenemedi'}
-                      </p>
-                      <StatusBadge status={order.status} />
-                    </div>
-
-                    {listing.category && (
-                      <p className="text-xs text-orange-500 font-medium mb-1">{listing.category}</p>
-                    )}
-
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mt-1">
-                      <span>{order.quantity} adet × {fmt(order.sale_price)} ₺</span>
-                      <span>{cargoLabel}</span>
-                      <span className="font-semibold text-gray-700">Toplam: {fmt(total)} ₺</span>
-                    </div>
-
-                    <p className="text-[11px] text-gray-400 mt-2">
-                      Sipariş tarihi: {new Date(order.order_date || order.created_at).toLocaleDateString('tr-TR')}
-                      <span className="ml-3 font-mono text-[10px]">#{order.id.slice(0, 8).toUpperCase()}</span>
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
+            {orders.map(order => (
+              <OrderCard key={order.id} order={order} />
+            ))}
           </div>
         )}
       </div>

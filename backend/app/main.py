@@ -5,7 +5,7 @@ if sys.platform == "win32":
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, listings, finance, chat, assistant, orders
+from app.routers import auth, listings, finance, chat, assistant, orders, reviews
 import os
 from dotenv import load_dotenv
 
@@ -39,6 +39,7 @@ app.include_router(finance.router,  prefix="/finance",  tags=["finance"])
 app.include_router(chat.router,      prefix="/chat",      tags=["chat"])
 app.include_router(assistant.router, prefix="/assistant", tags=["assistant"])
 app.include_router(orders.router,    prefix="/orders",    tags=["orders"])
+app.include_router(reviews.router,   prefix="/reviews",   tags=["reviews"])
 
 @app.get("/")
 def root():

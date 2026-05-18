@@ -23,10 +23,15 @@ export function AuthProvider({ children }) {
   }, [])
 
   const register = async (email, password, storeName, userType = 'seller') => {
+    // Doğrulama e-postasındaki linkin deploy edilmiş siteye yönlenmesi için
+    // window.location.origin kullanılır (localhost'ta localhost, Vercel'de Vercel URL'si döner).
+    const redirectTo = `${window.location.origin}/`
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: redirectTo,
         data: {
           store_name: storeName || '',
           user_type:  userType,

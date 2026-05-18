@@ -76,10 +76,13 @@ async def create_review(body: ReviewCreate, current_user=Depends(get_current_use
         "comment":    body.comment or "",
     }
 
-    res = supabase.table("reviews").insert(review_row).execute()
+    try:
+        res = supabase.table("reviews").insert(review_row).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Supabase insert hatası: {str(e)}")
 
     if not res.data:
-        raise HTTPException(status_code=500, detail="Yorum kaydedilemedi.")
+        raise HTTPException(status_code=500, detail="Yorum kaydedilemedi (boş dönüş).")
 
     return {
         "id":      res.data[0]["id"],

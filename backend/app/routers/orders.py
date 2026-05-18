@@ -15,12 +15,13 @@ Finance trigger (trg_order_finance_sync) artık order_cargo OLUŞTURMUYOR.
 Negatif kargo gideri bu router tarafından sipariş anında yazılır.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import date
 
 from app.database.supabase_client import supabase
+from app.routers.auth import get_current_user
 
 router = APIRouter()
 
@@ -88,6 +89,7 @@ async def create_order(body: OrderCreate):
     order_row = {
         "seller_id":       listing["user_id"],
         "listing_id":      body.listing_id,
+        "buyer_id":        body.buyer_id,     # NULL → misafir müşteri
         "quantity":        body.quantity,
         "sale_price":      sale_price,
         "cargo_price":     cargo_price,       # olduğu gibi sakla (negatif olabilir)
@@ -150,6 +152,22 @@ async def create_order(body: OrderCreate):
         "order_date":  str(date.today()),
         "message":     "Siparişiniz başarıyla alındı! Kargoya verildiğinde bildirim alacaksınız.",
     }
+
+
+@router.get("/my")
+async def get_my_orders(current_user=Depends(get_current_user)):
+    """Giriş yapan müşterinin tüm siparişlerini döndürür."""
+    res = (
+        supabase.table("orders")
+        .select(
+            "id, quantity, sale_price, cargo_price, status, order_date, created_at, "
+            "listing_id, listings(title, clean_image_url, category)"
+        )
+        .eq("buyer_id", str(current_user.id))
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return res.data or []
 
 
 @router.get("/listing/{listing_id}")

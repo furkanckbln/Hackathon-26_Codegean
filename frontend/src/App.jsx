@@ -19,6 +19,7 @@ import StorePage              from './pages/StorePage'
 import StoreProductPage       from './pages/StoreProductPage'
 import CustomerLoginPage      from './pages/CustomerLoginPage'
 import CustomerRegisterPage   from './pages/CustomerRegisterPage'
+import CustomerOrdersPage     from './pages/CustomerOrdersPage'
 
 const Loader = () => (
   <div className="min-h-screen flex items-center justify-center text-gray-400">Yükleniyor...</div>
@@ -87,6 +88,7 @@ function AppRoutes() {
       <Route path="/customer/register"      element={<CustomerGuestRoute><CustomerRegisterPage /></CustomerGuestRoute>} />
       {/* /customer — ileride CustomerDashboardPage gelecek */}
       <Route path="/customer"               element={<CustomerRoute><Navigate to="/store" replace /></CustomerRoute>} />
+      <Route path="/customer/orders"        element={<CustomerRoute><CustomerOrdersPage /></CustomerRoute>} />
     </Routes>
   )
 }

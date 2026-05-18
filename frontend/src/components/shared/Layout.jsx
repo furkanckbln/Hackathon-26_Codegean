@@ -8,6 +8,7 @@ const salesMenuItems = [
   { to: '/new-listing',     icon: '✨', label: 'Yeni İlan Oluştur' },
   { to: '/sales-assistant', icon: '🤖', label: 'Satış Asistanı'    },
   { to: '/competitor',      icon: '🔍', label: 'Rakip İlanları'    },
+  { to: '/seller/orders',  icon: '📦', label: 'Siparişler'         },
 ]
 
 const financeMenuItems = [

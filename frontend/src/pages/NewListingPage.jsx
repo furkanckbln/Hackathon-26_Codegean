@@ -147,7 +147,7 @@ export default function NewListingPage() {
       setListingId(res.data.listing_id)
       setCleanImage(res.data.clean_image_url)
     } catch (err) {
-      const msg = err.response?.data?.detail || 'YOLO analizi başarısız oldu.'
+      const msg = err.response?.data?.detail || 'Görsel AI ile temizlenemedi. Lütfen tekrar deneyin.'
       setYoloError(msg)
     } finally {
       setYoloLoading(false)

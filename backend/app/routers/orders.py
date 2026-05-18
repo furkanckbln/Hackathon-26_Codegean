@@ -170,6 +170,58 @@ async def get_my_orders(current_user=Depends(get_current_user)):
     return res.data or []
 
 
+@router.get("/seller")
+async def get_seller_orders(current_user=Depends(get_current_user)):
+    """Giriş yapan satıcının tüm siparişlerini döndürür."""
+    res = (
+        supabase.table("orders")
+        .select(
+            "id, quantity, sale_price, cargo_price, net_revenue, status, "
+            "order_date, created_at, listing_id, buyer_id, "
+            "listings(title, clean_image_url, category)"
+        )
+        .eq("seller_id", str(current_user.id))
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return res.data or []
+
+
+VALID_STATUSES = {"processing", "shipped", "delivered", "cancelled", "refunded"}
+
+class StatusUpdate(BaseModel):
+    status: str
+
+@router.patch("/{order_id}/status")
+async def update_order_status(
+    order_id: str,
+    body: StatusUpdate,
+    current_user=Depends(get_current_user),
+):
+    """Satıcı sipariş durumunu günceller."""
+    if body.status not in VALID_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Geçersiz statü. Geçerli değerler: {', '.join(VALID_STATUSES)}"
+        )
+
+    # Siparişin bu satıcıya ait olduğunu doğrula
+    check = (
+        supabase.table("orders")
+        .select("id, seller_id")
+        .eq("id", order_id)
+        .single()
+        .execute()
+    )
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Sipariş bulunamadı.")
+    if str(check.data["seller_id"]) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Bu siparişi güncelleme yetkiniz yok.")
+
+    supabase.table("orders").update({"status": body.status}).eq("id", order_id).execute()
+    return {"order_id": order_id, "status": body.status}
+
+
 @router.get("/listing/{listing_id}")
 async def get_listing_orders(listing_id: str):
     """İlana ait son 10 siparişi döndürür (seller dashboard için)."""

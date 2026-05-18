@@ -20,6 +20,7 @@ import StoreProductPage       from './pages/StoreProductPage'
 import CustomerLoginPage      from './pages/CustomerLoginPage'
 import CustomerRegisterPage   from './pages/CustomerRegisterPage'
 import CustomerOrdersPage     from './pages/CustomerOrdersPage'
+import SellerOrdersPage       from './pages/SellerOrdersPage'
 
 const Loader = () => (
   <div className="min-h-screen flex items-center justify-center text-gray-400">Yükleniyor...</div>
@@ -78,6 +79,7 @@ function AppRoutes() {
       <Route path="/listings/:id"           element={<SellerRoute><ListingDetailPage /></SellerRoute>} />
       <Route path="/sales-assistant"        element={<SellerRoute><SalesAssistantPage /></SellerRoute>} />
       <Route path="/alerts"                 element={<SellerRoute><ErrorBoundary><AlertsPage /></ErrorBoundary></SellerRoute>} />
+      <Route path="/seller/orders"          element={<SellerRoute><SellerOrdersPage /></SellerRoute>} />
 
       {/* ── Müşteri Vitrini (Public) ─────────────────────────────────────── */}
       <Route path="/store"                  element={<StorePage />} />

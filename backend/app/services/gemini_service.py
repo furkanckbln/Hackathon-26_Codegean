@@ -589,11 +589,13 @@ def sales_assistant_chat(
     """
 
     # ── Bağlam verisini okunabilir metne çevir ───────────────────────────────
-    my_stats     = context.get("my_stats", {})
-    top_listings = context.get("top_listings", [])
-    low_stock    = context.get("low_stock", [])
+    my_stats      = context.get("my_stats", {})
+    top_listings  = context.get("top_listings", [])
+    low_stock     = context.get("low_stock", [])
     category_avgs = context.get("category_avgs", {})
-    top_sector   = context.get("top_sector", [])
+    top_sector    = context.get("top_sector", [])
+    low_rated     = context.get("low_rated", [])
+    review_stats  = context.get("review_stats", {})
 
     top_listings_text = "\n".join([
         f"  - {l['title']} → {l.get('sales_count', 0)} satış, "
@@ -620,6 +622,30 @@ def sales_assistant_chat(
         for cat, d in list(category_avgs.items())[:10]
     ]) or "  Veri yok."
 
+    # Düşük puanlı ilanlar + son yorumlar
+    def _low_rated_text(items):
+        lines = []
+        for l in items:
+            line = f"  - {l['title']} → puan: {l['rating']}, {l['review_count']} yorum"
+            comments = l.get("recent_comments", [])
+            if comments:
+                line += "\n    Son yorumlar:"
+                for c in comments[:2]:
+                    line += f"\n      [{c['rating']}★] \"{c['comment'][:100]}\""
+            lines.append(line)
+        return "\n".join(lines) if lines else "  Düşük puanlı ilan yok."
+
+    low_rated_text = _low_rated_text(low_rated)
+
+    # Toplam yorum sayısı
+    total_reviews = sum(s.get("count", 0) for s in review_stats.values())
+    store_avg_review = (
+        round(
+            sum(s.get("avg_rating", 0) * s.get("count", 0) for s in review_stats.values())
+            / total_reviews, 1
+        ) if total_reviews > 0 else None
+    )
+
     system_prompt = f"""Sen SellerAI platformunun deneyimli bir e-ticaret satış asistanısın.
 Türk KOBİ satıcılarına ilanlarını iyileştirme, fiyatlandırma ve sektör trendleri konusunda somut, \
 veri odaklı öneriler sunuyorsun. Her zaman Türkçe yanıt ver. Kısa ve net ol, gereksiz giriş cümleleri kurma.
@@ -630,7 +656,9 @@ GENEL DURUM:
   Toplam ilan: {my_stats.get('total_listings', 0)}
   Aktif ilan:  {my_stats.get('active_listings', 0)}
   Toplam satış: {my_stats.get('total_sales', 0)}
-  Ortalama puan: {my_stats.get('avg_rating') or 'henüz yok'}
+  Ortalama ilan puanı: {my_stats.get('avg_rating') or 'henüz yok'}
+  Toplam müşteri yorumu: {total_reviews}
+  Yorum bazlı ortalama puan: {store_avg_review or 'henüz yok'}
 
 EN ÇOK SATAN İLANLARI:
 {top_listings_text}
@@ -638,16 +666,22 @@ EN ÇOK SATAN İLANLARI:
 STOK UYARILARI (stok <= 5):
 {low_stock_text}
 
+━━━ MÜŞTERİ YORUMLARI VE PUANLARI ━━━
+
+DÜŞÜK PUANLI İLANLAR (puan < 3.5):
+{low_rated_text}
+
 ━━━ SEKTÖR VERİLERİ ━━━
 
 PLATFORMUN EN ÇOK SATANLARI:
 {top_sector_text}
 
-KATEGORİ ORTALIMALARI:
+KATEGORİ ORTALAMALARI:
 {category_text}
 
 ━━━ GÖREV ━━━
 Satıcının sorularını yukarıdaki verilere dayanarak yanıtla.
+Müşteri yorumlarından pattern çıkarabiliyorsan (örn. kargo şikayeti, ürün kalitesi) belirt.
 Karşılaştırma yapabiliyorsan rakamları kullan.
 Öneri veriyorsan somut ve uygulanabilir ol."""
 

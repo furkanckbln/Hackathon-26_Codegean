@@ -115,12 +115,62 @@ async def get_summary(current_user=Depends(get_current_user)):
         .execute()
     top_sector = all_full_res.data or []
 
+    # ── 7. Yorum istatistikleri ───────────────────────────────────────────────
+    listing_ids = [l["id"] for l in my_listings]
+    review_stats    = {}
+    low_rated       = []
+
+    if listing_ids:
+        rev_res = supabase.table("reviews")\
+            .select("listing_id, rating, comment, created_at")\
+            .in_("listing_id", listing_ids)\
+            .order("created_at", desc=True)\
+            .execute()
+        reviews_data = rev_res.data or []
+
+        for r in reviews_data:
+            lid = r["listing_id"]
+            if lid not in review_stats:
+                review_stats[lid] = {"count": 0, "total_rating": 0, "recent_comments": []}
+            review_stats[lid]["count"]        += 1
+            review_stats[lid]["total_rating"] += r["rating"]
+            if len(review_stats[lid]["recent_comments"]) < 3 and r.get("comment"):
+                review_stats[lid]["recent_comments"].append({
+                    "rating":  r["rating"],
+                    "comment": r["comment"][:200],
+                    "date":    r["created_at"],
+                })
+
+        for lid, stats in review_stats.items():
+            stats["avg_rating"] = round(stats["total_rating"] / stats["count"], 1)
+            del stats["total_rating"]
+
+        # Düşük puanlı ilanlar (ortalama < 3.5, en az 1 yorum)
+        low_rated = sorted(
+            [
+                {
+                    "id":               l["id"],
+                    "title":            l["title"],
+                    "rating":           l.get("rating"),
+                    "review_count":     review_stats.get(l["id"], {}).get("count", 0),
+                    "recent_comments":  review_stats.get(l["id"], {}).get("recent_comments", []),
+                }
+                for l in my_listings
+                if l.get("rating") is not None
+                   and float(l["rating"]) < 3.5
+                   and review_stats.get(l["id"], {}).get("count", 0) > 0
+            ],
+            key=lambda x: x["rating"] or 5,
+        )[:5]
+
     return {
-        "my_stats":      my_stats,
-        "top_listings":  top_listings,
-        "low_stock":     low_stock,
-        "category_avgs": category_avgs,
-        "top_sector":    top_sector,
+        "my_stats":         my_stats,
+        "top_listings":     top_listings,
+        "low_stock":        low_stock,
+        "category_avgs":    category_avgs,
+        "top_sector":       top_sector,
+        "review_stats":     review_stats,     # listing_id → {count, avg_rating, recent_comments}
+        "low_rated":        low_rated,        # puan < 3.5 olan ilanlar + son yorumlar
     }
 
 

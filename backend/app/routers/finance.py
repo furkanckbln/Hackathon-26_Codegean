@@ -658,6 +658,52 @@ def _detect_anomalies(records: list, listings: list) -> list:
                 "recommendation": "Gider kontrolüne gir, gelir artırıcı aksiyonlar planla."
             })
 
+    # ── KURAL 6: Düşük Ürün Puanı ───────────────────────────────────────────
+    active_rated = [
+        l for l in listings
+        if l.get("status") == "active" and l.get("rating") is not None
+    ]
+
+    critical_rated = [l for l in active_rated if float(l["rating"]) < 2.0]
+    medium_rated   = [l for l in active_rated if 2.0 <= float(l["rating"]) < 3.0]
+
+    for l in critical_rated:
+        alerts.append({
+            "id":   f"low_rating_critical_{l['id']}",
+            "type": "low_rating",
+            "title": f"Kritik Düşük Puan: {l['title'][:45]}",
+            "detail": (
+                f"'{l['title'][:45]}' ilanının müşteri puanı "
+                f"{float(l['rating']):.1f}/5 seviyesine düştü. "
+                f"Müşteri memnuniyeti tehlikede, satışlarını olumsuz etkiliyor."
+            ),
+            "severity": "critical",
+            "metric": f"{float(l['rating']):.1f} / 5",
+            "recommendation": (
+                "Bu ilana hemen göz at: müşteri yorumlarını oku, "
+                "ürün açıklaması ve görsellerini güncelle, "
+                "varsa kalite sorununu gider."
+            ),
+        })
+
+    for l in medium_rated:
+        alerts.append({
+            "id":   f"low_rating_medium_{l['id']}",
+            "type": "low_rating",
+            "title": f"Düşük Puan Riski: {l['title'][:45]}",
+            "detail": (
+                f"'{l['title'][:45]}' ilanının ortalama puanı "
+                f"{float(l['rating']):.1f}/5. "
+                f"2.0'ın altına düşmeden önlem al."
+            ),
+            "severity": "medium",
+            "metric": f"{float(l['rating']):.1f} / 5",
+            "recommendation": (
+                "Müşteri yorumlarını incele, ürün kalitesi veya "
+                "açıklamasında iyileştirme yap."
+            ),
+        })
+
     # Severity sırasına göre sırala: critical > medium > low
     order = {"critical": 0, "medium": 1, "low": 2}
     alerts.sort(key=lambda a: order.get(a["severity"], 3))
@@ -889,7 +935,7 @@ async def get_alerts(current_user=Depends(get_current_user)):
 
     records  = _load_finance_records(user_id)
     lst_res  = supabase.table("listings") \
-        .select("id, title, stock, status, sales_count") \
+        .select("id, title, stock, status, sales_count, rating") \
         .eq("user_id", user_id).execute()
     listings = lst_res.data or []
 

@@ -163,35 +163,32 @@ async def get_summary(current_user=Depends(get_current_user)):
             key=lambda x: x["rating"] or 5,
         )[:5]
 
-    return {
-        "my_stats":         my_stats,
-        "top_listings":     top_listings,
-        "low_stock":        low_stock,
-        "category_avgs":    category_avgs,
-        "top_sector":       top_sector,
-        "review_stats":     review_stats,     # listing_id → {count, avg_rating, recent_comments}
-        "low_rated":        low_rated,        # puan < 3.5 olan ilanlar + son yorumlar
-    }
+    # ── 8. İade istatistikleri (listing bazında) ─────────────────────────────
+    refund_stats = {}   # listing_id → {refund_count, total_count, refund_rate}
+    if listing_ids:
+        # Satıcının iade edilmiş siparişleri
+        refund_res = supabase.table("orders")\
+            .select("listing_id, quantity")\
+            .eq("seller_id", str(user_id))\
+            .eq("status", "refunded")\
+            .execute()
 
+        # Satıcının toplam sipariş sayısı (listing bazında)
+        total_orders_res = supabase.table("orders")\
+            .select("listing_id, quantity")\
+            .eq("seller_id", str(user_id))\
+            .execute()
 
-# ── POST /assistant/chat ──────────────────────────────────────────────────────
-@router.post("/chat")
-async def assistant_chat(
-    body: AssistantChatRequest,
-    current_user=Depends(get_current_user),
-):
-    """
-    Satış asistanı sohbet endpoint'i.
-    Her istekte mesaj + geçmiş (son 10) + bağlam verisi gelir.
-    """
-    try:
-        reply = await asyncio.to_thread(
-            sales_assistant_chat,
-            message = body.message,
-            history = [m.model_dump() for m in body.history],
-            context = body.context,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Asistan yanıt üretemedi: {str(e)}")
+        # listing başına toplam sipariş adedi
+        total_per_listing = {}
+        for o in (total_orders_res.data or []):
+            lid = o["listing_id"]
+            total_per_listing[lid] = total_per_listing.get(lid, 0) + 1
 
-    return {"reply": reply}
+        # listing başına iade adedi
+        refund_per_listing = {}
+        for o in (refund_res.data or []):
+            lid = o["listing_id"]
+            refund_per_listing[lid] = refund_per_listing.get(lid, 0) + 1
+
+        # Sadece iade olanları refund_stats'a 

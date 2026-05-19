@@ -537,17 +537,4 @@ export default function StorePage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {filtered.map(l => (
-              <ProductCard
-                key={l.id}
-                listing={l}
-                onClick={() => navigate(`/store/${l.id}`)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+          <div classNa

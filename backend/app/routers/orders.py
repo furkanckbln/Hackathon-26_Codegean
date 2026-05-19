@@ -189,6 +189,19 @@ async def get_seller_orders(current_user=Depends(get_current_user)):
 
 VALID_STATUSES = {"processing", "shipped", "delivered", "cancelled", "refunded"}
 
+
+def _cleanup_order_finance(order_id: str):
+    """
+    İade edilen siparişin trigger tarafından oluşturulmuş finance kayıtlarını sil.
+    Manuel kayıtlar (source='manual') korunur.
+    """
+    supabase.table("finance_records")\
+        .delete()\
+        .eq("source_order_id", order_id)\
+        .neq("source", "manual")\
+        .execute()
+
+
 class StatusUpdate(BaseModel):
     status: str
 
@@ -219,6 +232,11 @@ async def update_order_status(
         raise HTTPException(status_code=403, detail="Bu siparişi güncelleme yetkiniz yok.")
 
     supabase.table("orders").update({"status": body.status}).eq("id", order_id).execute()
+
+    # İade → trigger kayıtlarını temizle
+    if body.status == "refunded":
+        _cleanup_order_finance(order_id)
+
     return {"order_id": order_id, "status": body.status}
 
 
@@ -253,18 +271,5 @@ async def request_refund(
         )
 
     supabase.table("orders").update({"status": "refunded"}).eq("id", order_id).execute()
-    return {"order_id": order_id, "status": "refunded"}
 
-
-@router.get("/listing/{listing_id}")
-async def get_listing_orders(listing_id: str):
-    """İlana ait son 10 siparişi döndürür (seller dashboard için)."""
-    res = (
-        supabase.table("orders")
-        .select("id, quantity, sale_price, cargo_price, status, order_date, created_at")
-        .eq("listing_id", listing_id)
-        .order("created_at", desc=True)
-        .limit(10)
-        .execute()
-    )
-    return res.data or []
+    # İade → trigg

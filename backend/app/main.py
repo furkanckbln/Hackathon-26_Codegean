@@ -35,4 +35,12 @@ app.add_middleware(
 
 app.include_router(auth.router,     prefix="/auth",     tags=["auth"])
 app.include_router(listings.router, prefix="/listings", tags=["listings"])
-app.include_router(finance.router,  prefix=
+app.include_router(finance.router,  prefix="/finance",  tags=["finance"])
+app.include_router(chat.router,      prefix="/chat",      tags=["chat"])
+app.include_router(assistant.router, prefix="/assistant", tags=["assistant"])
+app.include_router(orders.router,    prefix="/orders",    tags=["orders"])
+app.include_router(reviews.router,   prefix="/reviews",   tags=["reviews"])
+
+@app.get("/")
+def root():
+    return {"status": "SellerAI API çalışıyor"}

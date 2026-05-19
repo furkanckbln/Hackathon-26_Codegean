@@ -62,7 +62,7 @@ function StarDisplay({ value }) {
 }
 
 /** Tek sipariş kartı */
-function OrderCard({ order }) {
+function OrderCard({ order, onRefund }) {
   const listing    = order.listings || {}
   const cargoLabel = (order.cargo_price ?? 0) > 0
     ? `${fmt(order.cargo_price)} ₺ kargo`
@@ -80,6 +80,10 @@ function OrderCard({ order }) {
   const [submitting,   setSubmitting]   = useState(false)
   const [submitErr,    setSubmitErr]    = useState('')
 
+  const [refunding,    setRefunding]    = useState(false)
+  const [refundErr,    setRefundErr]    = useState('')
+  const [confirmOpen,  setConfirmOpen]  = useState(false)
+
   // Teslim edilmiş siparişler için mevcut yorumu çek
   useEffect(() => {
     if (!isDelivered) return
@@ -87,6 +91,21 @@ function OrderCard({ order }) {
       .then(r => { setReview(r.data); setReviewLoaded(true) })
       .catch(() => { setReview(null); setReviewLoaded(true) })
   }, [order.id, isDelivered])
+
+  const handleRefund = async () => {
+    setRefunding(true)
+    setRefundErr('')
+    try {
+      await api.patch(`/orders/${order.id}/refund`)
+      setConfirmOpen(false)
+      onRefund(order.id)   // üst bileşene haber ver → local state güncelle
+    } catch (e) {
+      setRefundErr(e?.response?.data?.detail || 'İade işlemi başarısız.')
+      setConfirmOpen(false)
+    } finally {
+      setRefunding(false)
+    }
+  }
 
   const handleSubmit = async () => {
     if (rating === 0) { setSubmitErr('Lütfen bir puan seç.'); return }
@@ -153,6 +172,50 @@ function OrderCard({ order }) {
           </p>
         </div>
       </div>
+
+      {/* ── İade butonu (yalnızca teslim edilmiş) ───────────────────────── */}
+      {isDelivered && (
+        <div className="border-t border-gray-100 px-4 py-2.5 bg-gray-50/40 flex items-center justify-between gap-3">
+          <span className="text-xs text-gray-400">Ürünü iade etmek istiyor musunuz?</span>
+          {refundErr && <p className="text-xs text-red-500">{refundErr}</p>}
+          <button
+            onClick={() => setConfirmOpen(true)}
+            disabled={refunding}
+            className="text-xs font-semibold text-red-500 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+          >
+            ↩ İade Et
+          </button>
+        </div>
+      )}
+
+      {/* Onay dialog */}
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
+            <div className="text-2xl mb-3">↩</div>
+            <h3 className="text-base font-bold text-gray-800 mb-1">İade Talebi</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              <span className="font-medium text-gray-700">{listing.title}</span> ürününü iade etmek
+              istediğinizden emin misiniz? Bu işlem geri alınamaz.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 text-sm border border-gray-200 rounded-xl py-2.5 hover:bg-gray-50 transition-colors"
+              >
+                Vazgeç
+              </button>
+              <button
+                onClick={handleRefund}
+                disabled={refunding}
+                className="flex-1 text-sm font-semibold bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white rounded-xl py-2.5 transition-colors"
+              >
+                {refunding ? '⏳ İşleniyor…' : 'Evet, İade Et'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Yorum bölgesi (yalnızca teslim edilmiş) ──────────────────────── */}
       {isDelivered && reviewLoaded && (
@@ -241,6 +304,13 @@ export default function CustomerOrdersPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Kart iade edilince local state'i güncelle → yeniden fetch gerekmiyor
+  const handleRefund = (orderId) => {
+    setOrders(prev =>
+      prev.map(o => o.id === orderId ? { ...o, status: 'refunded' } : o)
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
 
@@ -304,7 +374,7 @@ export default function CustomerOrdersPage() {
         {!loading && orders.length > 0 && (
           <div className="space-y-4">
             {orders.map(order => (
-              <OrderCard key={order.id} order={order} />
+              <OrderCard key={order.id} order={order} onRefund={handleRefund} />
             ))}
           </div>
         )}

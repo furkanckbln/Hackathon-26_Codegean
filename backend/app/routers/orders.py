@@ -222,6 +222,40 @@ async def update_order_status(
     return {"order_id": order_id, "status": body.status}
 
 
+@router.patch("/{order_id}/refund")
+async def request_refund(
+    order_id: str,
+    current_user=Depends(get_current_user),
+):
+    """
+    Müşteri iade talebi — delivered siparişi refunded'a çeker.
+    Yalnızca siparişin buyer_id'si ile eşleşen kullanıcı yapabilir.
+    """
+    check = (
+        supabase.table("orders")
+        .select("id, buyer_id, status")
+        .eq("id", order_id)
+        .single()
+        .execute()
+    )
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Sipariş bulunamadı.")
+
+    order = check.data
+
+    if str(order.get("buyer_id", "")) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Bu siparişi iade etme yetkiniz yok.")
+
+    if order["status"] != "delivered":
+        raise HTTPException(
+            status_code=400,
+            detail="Yalnızca teslim edilmiş siparişler iade edilebilir."
+        )
+
+    supabase.table("orders").update({"status": "refunded"}).eq("id", order_id).execute()
+    return {"order_id": order_id, "status": "refunded"}
+
+
 @router.get("/listing/{listing_id}")
 async def get_listing_orders(listing_id: str):
     """İlana ait son 10 siparişi döndürür (seller dashboard için)."""

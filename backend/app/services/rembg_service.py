@@ -25,7 +25,7 @@ _session = None
 def get_session():
     global _session
     if _session is None:
-        _session = new_session("u2net")
+        _session = new_session("u2netp")
     return _session
 
 

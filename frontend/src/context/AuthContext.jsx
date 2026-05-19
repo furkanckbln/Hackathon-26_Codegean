@@ -52,4 +52,17 @@ export function AuthProvider({ children }) {
     await supabase.auth.signOut()
   }
 
-  /** Mevcut kullanıcının tipini döndürür: 'seller' | 'custom
+  /** Mevcut kullanıcının tipini döndürür: 'seller' | 'customer' */
+  const getUserType = () => user?.user_metadata?.user_type ?? 'seller'
+
+  return (
+    <AuthContext.Provider value={{ user, loading, register, login, logout, getUserType }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+// Kolayca erişmek için hook
+export function useAuth() {
+  return useContext(AuthContext)
+}

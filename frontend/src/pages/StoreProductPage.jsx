@@ -365,4 +365,100 @@ function ReviewsSection({ reviews, loading }) {
 
         {!loading && reviews.length === 0 && (
           <div className="text-center py-6">
-            <div className="text-3xl mb-2 opa
+            <div className="text-3xl mb-2 opacity-20">💬</div>
+            <p className="text-sm text-gray-400">Henüz yorum yapılmamış. İlk yorumu sen yap!</p>
+          </div>
+        )}
+
+        {!loading && reviews.length > 0 && (
+          <div className="space-y-5">
+            {reviews.map((r) => (
+              <div key={r.id} className="flex gap-3">
+                {/* Avatar */}
+                <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <span className="text-orange-500 text-xs font-bold">M</span>
+                </div>
+                {/* İçerik */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <StarDisplay value={r.rating} />
+                    <span className="text-[11px] text-gray-400">
+                      {new Date(r.created_at).toLocaleDateString('tr-TR')}
+                    </span>
+                  </div>
+                  {r.comment ? (
+                    <p className="text-sm text-gray-700 leading-relaxed">{r.comment}</p>
+                  ) : (
+                    <p className="text-xs text-gray-400 italic">Yorum yazılmamış.</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Detay Tabları bileşeni ────────────────────────────────────────────────────
+function DetailTabs({ listing, featureList, seoList }) {
+  const [tab, setTab] = useState('desc')
+
+  const tabs = [
+    { key: 'desc',     label: 'Ürün Açıklaması' },
+    { key: 'features', label: `Özellikler (${featureList.length})` },
+    { key: 'tags',     label: 'Etiketler' },
+  ].filter(t => {
+    if (t.key === 'features') return featureList.length > 0
+    if (t.key === 'tags')     return seoList.length > 0
+    return true
+  })
+
+  return (
+    <div className="mt-4 bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+      <div className="flex border-b border-gray-100">
+        {tabs.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`px-5 py-3.5 text-sm font-medium transition-colors border-b-2 -mb-px
+              ${tab === t.key
+                ? 'border-orange-500 text-orange-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div className="p-6">
+        {tab === 'desc' && (
+          <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+            {listing.long_desc || <span className="text-gray-400">Açıklama eklenmemiş.</span>}
+          </div>
+        )}
+        {tab === 'features' && (
+          <table className="w-full text-sm">
+            <tbody>
+              {featureList.map((f, i) => (
+                <tr key={i} className={i % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                  <td className="py-2.5 px-4 text-gray-400 w-8 font-medium">{i + 1}</td>
+                  <td className="py-2.5 px-4 text-gray-700">{f}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {tab === 'tags' && (
+          <div className="flex flex-wrap gap-2">
+            {seoList.map((tag, i) => (
+              <span key={i} className="bg-orange-50 text-orange-600 text-xs font-medium px-3 py-1.5 rounded-full border border-orange-100">
+                # {tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

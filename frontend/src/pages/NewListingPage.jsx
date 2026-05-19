@@ -647,4 +647,72 @@ export default function NewListingPage() {
               <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3">
                 <div className="flex gap-1 items-center">
                   <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              
+                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            </div>
+          )}
+          <div ref={chatBottomRef} />
+        </div>
+
+        {/* Örnek promptlar */}
+        {chatMessages.length <= 2 && (
+          <div className="px-4 pb-2">
+            <p className="text-xs text-gray-400 mb-2">Örnek istekler:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {['Başlığı kısalt', 'Garanti bilgisi ekle', 'SEO etiketlerini genişlet', 'Açıklamayı kısalt'].map(s => (
+                <button key={s} onClick={() => setChatInput(s)}
+                  className="text-xs bg-gray-100 hover:bg-blue-50 hover:text-blue-600 text-gray-600 px-2.5 py-1 rounded-full transition-colors border border-gray-200">
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Input alanı */}
+        <div className="p-4 border-t border-gray-100">
+          <div className="flex gap-2 items-end">
+            <textarea
+              rows={2}
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={handleChatKey}
+              placeholder="Değişiklik iste... (Enter ile gönder)"
+              disabled={!aiDone}
+              className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none
+                         disabled:bg-gray-50 disabled:text-gray-400"
+            />
+            <button onClick={handleChatSend} disabled={!chatInput.trim() || chatLoading || !aiDone}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white
+                         p-2.5 rounded-xl transition-colors flex-shrink-0">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
+          {!aiDone && <p className="text-xs text-gray-400 mt-1.5">Önce "AI ile Doldur" butonuna bas.</p>}
+        </div>
+      </div>
+
+      {/* Overlay — chat açıkken arka planı karartır */}
+      {chatOpen && (
+        <div className="fixed inset-0 bg-black/20 z-30" onClick={() => setChatOpen(false)} />
+      )}
+
+      {/* Floating buton */}
+      <button
+        onClick={() => setChatOpen(true)}
+        className={`fixed bottom-6 right-6 w-14 h-14 bg-blue-600 hover:bg-blue-700
+                    text-white rounded-full shadow-lg hover:shadow-xl
+                    flex items-center justify-center text-2xl transition-all z-50
+                    ${chatOpen ? 'scale-0' : 'scale-100'}`}
+        title="AI Asistan"
+      >
+        💬
+      </button>
+    </Layout>
+  )
+}

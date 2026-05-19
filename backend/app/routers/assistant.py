@@ -191,4 +191,65 @@ async def get_summary(current_user=Depends(get_current_user)):
             lid = o["listing_id"]
             refund_per_listing[lid] = refund_per_listing.get(lid, 0) + 1
 
-        # Sadece iade olanları refund_stats'a 
+        # Sadece iade olanları refund_stats'a ekle, iade oranını hesapla
+        for lid, cnt in refund_per_listing.items():
+            total = total_per_listing.get(lid, cnt)
+            rate  = round(cnt / total * 100, 1) if total else 0.0
+            refund_stats[lid] = {
+                "refund_count": cnt,
+                "total_count":  total,
+                "refund_rate":  rate,
+            }
+
+    # İade oranına göre sıralanmış ilan listesi (en yüksek önce, max 5)
+    high_refund_listings = sorted(
+        [
+            {
+                "id":           lid,
+                "title":        next((l["title"] for l in my_listings if l["id"] == lid), lid),
+                "category":     next((l.get("category", "") for l in my_listings if l["id"] == lid), ""),
+                "refund_count": s["refund_count"],
+                "total_count":  s["total_count"],
+                "refund_rate":  s["refund_rate"],
+            }
+            for lid, s in refund_stats.items()
+            if s["refund_rate"] >= 5.0   # %5 ve üzeri iade oranı olanları dahil et
+        ],
+        key=lambda x: x["refund_rate"],
+        reverse=True,
+    )[:5]
+
+    return {
+        "my_stats":             my_stats,
+        "top_listings":         top_listings,
+        "low_stock":            low_stock,
+        "category_avgs":        category_avgs,
+        "top_sector":           top_sector,
+        "review_stats":         review_stats,         # listing_id → {count, avg_rating, recent_comments}
+        "low_rated":            low_rated,            # puan < 3.5 olan ilanlar + son yorumlar
+        "refund_stats":         refund_stats,         # listing_id → {refund_count, total_count, refund_rate}
+        "high_refund_listings": high_refund_listings, # iade oranı yüksek ilanlar (sıralı)
+    }
+
+
+# ── POST /assistant/chat ──────────────────────────────────────────────────────
+@router.post("/chat")
+async def assistant_chat(
+    body: AssistantChatRequest,
+    current_user=Depends(get_current_user),
+):
+    """
+    Satış asistanı sohbet endpoint'i.
+    Her istekte mesaj + geçmiş (son 10) + bağlam verisi gelir.
+    """
+    try:
+        reply = await asyncio.to_thread(
+            sales_assistant_chat,
+            message = body.message,
+            history = [m.model_dump() for m in body.history],
+            context = body.context,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Asistan yanıt üretemedi: {str(e)}")
+
+    return {"reply": reply}

@@ -272,4 +272,21 @@ async def request_refund(
 
     supabase.table("orders").update({"status": "refunded"}).eq("id", order_id).execute()
 
-    # İade → trigg
+    # İade → trigger kayıtlarını temizle
+    _cleanup_order_finance(order_id)
+
+    return {"order_id": order_id, "status": "refunded"}
+
+
+@router.get("/listing/{listing_id}")
+async def get_listing_orders(listing_id: str):
+    """İlana ait son 10 siparişi döndürür (seller dashboard için)."""
+    res = (
+        supabase.table("orders")
+        .select("id, quantity, sale_price, cargo_price, status, order_date, created_at")
+        .eq("listing_id", listing_id)
+        .order("created_at", desc=True)
+        .limit(10)
+        .execute()
+    )
+    return res.data or []

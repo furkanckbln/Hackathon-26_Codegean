@@ -90,4 +90,21 @@ function AppRoutes() {
       <Route path="/customer/register"      element={<CustomerGuestRoute><CustomerRegisterPage /></CustomerGuestRoute>} />
       {/* /customer — ileride CustomerDashboardPage gelecek */}
       <Route path="/customer"               element={<CustomerRoute><Navigate to="/store" replace /></CustomerRoute>} />
-      <Route path="/customer/orders"        element={<CustomerR
+      <Route path="/customer/orders"        element={<CustomerRoute><CustomerOrdersPage /></CustomerRoute>} />
+    </Routes>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AlertProvider>
+          <CartProvider>
+            <AppRoutes />
+          </CartProvider>
+        </AlertProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  )
+}

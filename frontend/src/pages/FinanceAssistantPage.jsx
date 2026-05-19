@@ -111,7 +111,7 @@ export default function FinanceAssistantPage() {
   const [ctxLoading,  setCtxLoading]  = useState(true)
 
   const [messages,    setMessages]    = useState([
-    { role: 'ai', text: 'Merhaba! Ben SellerAI Finans Asistanı\'yım. Son 6 aylık finansal tablonu inceledim — kârlılık, gider optimizasyonu veya nakit akışı hakkında sormak istediğin ne varsa sorabilirsin.' }
+    { role: 'ai', text: 'Merhaba! Ben DijitalEsnaf Finans Asistanı\'yım. Son 6 aylık finansal tablonu inceledim — kârlılık, gider optimizasyonu veya nakit akışı hakkında sormak istediğin ne varsa sorabilirsin.' }
   ])
   const [input,       setInput]       = useState('')
   const [loading,     setLoading]     = useState(false)

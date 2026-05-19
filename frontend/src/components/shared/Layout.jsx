@@ -41,7 +41,7 @@ export default function Layout({ children }) {
 
         {/* Logo */}
         <div className="flex items-center justify-between px-4 py-5 border-b border-gray-100">
-          {!collapsed && <span className="text-xl font-bold text-blue-600">SellerAI</span>}
+          {!collapsed && <span className="text-xl font-bold text-blue-600">DijitalEsnaf</span>}
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors ml-auto"

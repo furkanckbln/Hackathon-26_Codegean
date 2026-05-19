@@ -32,7 +32,7 @@ export default function LoginPage() {
 
         {/* Logo / Başlık */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-600">SellerAI</h1>
+          <h1 className="text-3xl font-bold text-blue-600">DijitalEsnaf</h1>
           <p className="text-gray-500 mt-1 text-sm">Satıcı Paneline Giriş Yap</p>
         </div>
 

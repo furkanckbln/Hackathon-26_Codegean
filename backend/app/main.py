@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-app = FastAPI(title="SellerAI API")
+app = FastAPI(title="DijitalEsnaf API")
 
 origins = [
     "http://localhost:5173",
@@ -43,4 +43,4 @@ app.include_router(reviews.router,   prefix="/reviews",   tags=["reviews"])
 
 @app.get("/")
 def root():
-    return {"status": "SellerAI API çalışıyor"}
+    return {"status": "DijitalEsnaf API çalışıyor"}

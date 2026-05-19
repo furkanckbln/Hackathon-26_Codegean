@@ -407,7 +407,7 @@ def finance_assistant_chat(
     marketing     = next((e["total"] for e in expenses if "Reklam" in e["category"]), 0)
     marketing_pct = round((marketing / gross * 100), 1) if gross else 0
 
-    system_prompt = f"""Sen SellerAI platformunun uzman bir KOBİ finansal danışmanısın.
+    system_prompt = f"""Sen DijitalEsnaf platformunun uzman bir KOBİ finansal danışmanısın.
 Türk küçük ölçekli e-ticaret satıcılarına nakit akışı, kârlılık ve maliyet yönetimi konularında \
 somut, veri odaklı öneriler veriyorsun. Her zaman Türkçe yanıt ver. Gereksiz giriş cümleleri kurma.
 
@@ -528,7 +528,7 @@ def alert_assistant_chat(
         if has_critical else ""
     )
 
-    system_prompt = f"""{urgent_prefix}Sen SellerAI platformunun uzman bir KOBİ finansal risk danışmanısın.
+    system_prompt = f"""{urgent_prefix}Sen DijitalEsnaf platformunun uzman bir KOBİ finansal risk danışmanısın.
 Türk küçük ölçekli e-ticaret satıcılarına tespit edilen finansal anomaliler hakkında \
 somut, uygulanabilir ve aciliyet sırasına göre öneriler veriyorsun. \
 Her zaman Türkçe yanıt ver. Gereksiz giriş cümleleri kurma. Kısa ve net ol.
@@ -662,7 +662,7 @@ def sales_assistant_chat(
         ) if total_reviews > 0 else None
     )
 
-    system_prompt = f"""Sen SellerAI platformunun deneyimli bir e-ticaret satış asistanısın.
+    system_prompt = f"""Sen DijitalEsnaf platformunun deneyimli bir e-ticaret satış asistanısın.
 Türk KOBİ satıcılarına ilanlarını iyileştirme, fiyatlandırma ve sektör trendleri konusunda somut, \
 veri odaklı öneriler sunuyorsun. Her zaman Türkçe yanıt ver. Kısa ve net ol, gereksiz giriş cümleleri kurma.
 

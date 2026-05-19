@@ -14,7 +14,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: sellerai-backend
+    container_name: dijitalesnaf-backend
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -40,7 +40,7 @@ services:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
         VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
         VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
-    container_name: sellerai-frontend
+    container_name: dijitalesnaf-frontend
     restart: unless-stopped
     ports:
       - "80:80"

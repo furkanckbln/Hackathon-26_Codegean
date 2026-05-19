@@ -171,8 +171,9 @@ async def get_all_listings(
     Tüm satıcıların aktif ilanlarını döndür.
     Rakip analizi + müşteri vitrini için — auth gerektirmez (public data).
     """
-    query = supabase.table("listings")\
-        .select("id, title, category, price, cargo_price, stock, clean_image_url, sales_count, rating, created_at")\
+    query = supabase.table("listings") \
+        .select(
+        "id, title, category, price, cargo_price, stock, clean_image_url, sales_count, rating, created_at, seo_tags") \
         .eq("status", "active")
 
     if category:

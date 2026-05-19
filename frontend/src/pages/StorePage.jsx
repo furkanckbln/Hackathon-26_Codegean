@@ -170,9 +170,22 @@ export default function StorePage() {
   const categories = [CATEGORY_ALL, ...Array.from(new Set(listings.map(l => l.category).filter(Boolean)))]
 
   // Filtrele
+ // Filtrele
   const filtered = listings.filter(l => {
-    const matchCat    = activeCategory === CATEGORY_ALL || l.category === activeCategory
-    const matchSearch = !search || l.title?.toLowerCase().includes(search.toLowerCase())
+    const matchCat = activeCategory === CATEGORY_ALL || l.category === activeCategory
+    const searchLower = search.toLowerCase()
+
+    // Başlıkta arama
+    const matchTitle = l.title?.toLowerCase().includes(searchLower)
+
+    // SEO etiketlerinde (array içinde) arama
+    const matchTags = Array.isArray(l.seo_tags)
+      ? l.seo_tags.some(tag => tag.toLowerCase().includes(searchLower))
+      : false
+
+    // Arama kutusu boşsa (!search) hepsini göster, değilse başlık VEYA etiket eşleşsin
+    const matchSearch = !search || matchTitle || matchTags
+
     return matchCat && matchSearch
   })
 

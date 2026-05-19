@@ -57,7 +57,8 @@ export default function StoreProductPage() {
   const [reviewsLoading, setReviewsLoading] = useState(true)
 
   useEffect(() => {
-    api.get(`/listings/${id}`)
+    // BURASI DEĞİŞTİ: /listings/${id} yerine /listings/public/${id} oldu
+    api.get(`/listings/public/${id}`)
       .then(r => setListing(r.data))
       .catch(() => {})
       .finally(() => setLoading(false))

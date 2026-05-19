@@ -142,6 +142,25 @@ async def get_my_listings(current_user=Depends(get_current_user)):
         .execute()
     return result.data
 
+# ── GET /listings/public/{listing_id} ─────────────────────────────────────────
+@router.get("/public/{listing_id}")
+async def get_public_listing(listing_id: str):
+    """
+    Müşteri vitrini için tek bir ilanın detaylarını döndürür.
+    Auth gerektirmez. Satıcıya özel finansal verileri (cost_price vb.) KORUR.
+    """
+    result = supabase.table("listings")\
+        .select("id, title, short_desc, long_desc, features, seo_tags, category, price, cargo_price, stock, sales_count, rating, clean_image_url, created_at, status")\
+        .eq("id", listing_id)\
+        .eq("status", "active")\
+        .single()\
+        .execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="İlan bulunamadı veya aktif değil.")
+
+    return result.data
+
 
 # ── GET /listings/all ─────────────────────────────────────────────────────────
 @router.get("/all")

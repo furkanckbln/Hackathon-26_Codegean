@@ -129,7 +129,7 @@ export default function StoreProductPage() {
             className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-600 transition-colors"
           >
             <div className="w-7 h-7 rounded-lg bg-orange-500 flex items-center justify-center text-white font-bold text-xs">
-              S
+              D
             </div>
             <span className="font-bold text-gray-800">
               Dijital<span className="text-orange-500">Esnaf</span>

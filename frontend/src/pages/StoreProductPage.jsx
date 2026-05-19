@@ -131,7 +131,7 @@ export default function StoreProductPage() {
               S
             </div>
             <span className="font-bold text-gray-800">
-              Seller<span className="text-orange-500">AI</span>
+              Dijital<span className="text-orange-500">Esnaf</span>
             </span>
           </button>
 

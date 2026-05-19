@@ -322,10 +322,10 @@ export default function CustomerOrdersPage() {
             className="flex items-center gap-2 text-sm hover:text-orange-600 transition-colors"
           >
             <div className="w-7 h-7 rounded-lg bg-orange-500 flex items-center justify-center text-white font-bold text-xs">
-              S
+              D
             </div>
             <span className="font-bold text-gray-800">
-              Seller<span className="text-orange-500">AI</span>
+              Dijital<span className="text-orange-500">Esnaf</span>
             </span>
           </button>
           <span className="text-gray-300">/</span>

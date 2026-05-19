@@ -339,9 +339,9 @@ export default function StorePage() {
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
           {/* Logo */}
           <div className="flex items-center gap-2 flex-shrink-0 cursor-pointer" onClick={() => navigate('/store')}>
-            <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center text-white font-bold text-sm">S</div>
+            <div className="w-8 h-8 rounded-lg bg-orange-500 flex items-center justify-center text-white font-bold text-sm">D</div>
             <span className="font-bold text-gray-800 text-lg">
-              Seller<span className="text-orange-500">AI</span>
+              Dijital<span className="text-orange-500">Esnaf</span>
               <span className="font-normal text-gray-400 text-sm ml-1">Mağaza</span>
             </span>
           </div>

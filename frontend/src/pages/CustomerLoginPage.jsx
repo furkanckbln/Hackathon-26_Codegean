@@ -41,10 +41,10 @@ export default function CustomerLoginPage() {
         {/* Logo / Başlık */}
         <div className="text-center mb-8">
           <div className="w-12 h-12 rounded-xl bg-orange-500 flex items-center justify-center text-white font-bold text-xl mx-auto mb-3">
-            S
+            D
           </div>
           <h1 className="text-2xl font-bold text-gray-800">
-            Seller<span className="text-orange-500">AI</span> Mağaza
+            Dijital<span className="text-orange-500">Esnaf</span> Mağaza
           </h1>
           <p className="text-gray-500 mt-1 text-sm">Müşteri hesabınla giriş yap</p>
         </div>

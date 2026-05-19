@@ -56,7 +56,7 @@ export default function CustomerRegisterPage() {
             S
           </div>
           <h1 className="text-2xl font-bold text-gray-800">
-            Seller<span className="text-orange-500">AI</span> Mağaza
+            Dijital<span className="text-orange-500">Esnaf</span> Mağaza
           </h1>
           <p className="text-gray-500 mt-1 text-sm">Yeni müşteri hesabı oluştur</p>
         </div>

@@ -7,7 +7,7 @@
 **DijitalEsnaf**, e-ticarete yeni başlayan veya operasyonlarını büyütmek isteyen KOBİ'ler için geliştirilmiş uçtan uca, yapay zeka destekli bir e-ticaret yönetim ve finans platformudur.
 
 **🔗 [Canlı Demo Linki]** (https://hackathon-26-codegean.vercel.app/)  
-**📹 [1 Dakikalık Tanıtım Videosu]** (YouTube linki buraya eklenecek)
+**📹 [1 Dakikalık Tanıtım Videosu]** (https://youtu.be/uKKka8-hxCQ)
 
 ---
 

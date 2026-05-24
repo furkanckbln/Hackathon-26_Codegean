@@ -16,8 +16,8 @@ app = FastAPI(title="DijitalEsnaf API")
 origins = [
     "http://localhost:5173",
     "http://localhost:3000",
-    "https://hackathon-26-codegean.vercel.app",
-    "https://hackathon-26-codegean-9iggkggd1-furkanckblns-projects.vercel.app",
+    "https://hackathon-26-codegean.vercel.app",          # Vercel prod
+    "https://hackathon-26-codegean-9iggkggd1-furkanckblns-projects.vercel.app",  # Vercel preview
 ]
 
 # Railway env'den gelen FRONTEND_URL de listeye ekle (boşsa atla)
